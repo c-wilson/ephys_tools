@@ -1,4 +1,4 @@
-Pre-sort
+Pre-sort package
 ====
 
 This contains both scripts to process data for sorting with KlustaSuite software and templates for parameter (and probe)
