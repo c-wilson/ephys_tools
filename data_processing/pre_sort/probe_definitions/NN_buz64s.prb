@@ -1,0 +1,152 @@
+__author__ = 'chris'
+
+from ephys_tools.data_processing.pre_sort.utils.probe_utils import remap_sites_to_channels, calc_channel_list
+
+
+chan_translation = {  # site number (NEURONEXUS) and sgl channel numbers (Chris mapped)
+                      'sites': [6, 5, 7, 4, 8, 3, 9, 2, 10, 1, 16, 15, 17, 14, 18, 13, 19,
+                                12, 20, 11, 26, 25, 27, 24, 28, 23, 29, 22, 30, 21, 40, 35, 41, 34,
+                                42, 33, 43, 32, 44, 31, 50, 49, 51, 48, 52, 47, 53, 46, 54, 45, 60,
+                                59, 61, 58, 62, 57, 63, 56, 64, 55, 37, 38, 39, 36],
+                      'sgl_chan': [35, 60, 62, 33, 37, 59, 32, 63, 39, 61, 50, 38, 55, 52, 48, 36, 53,
+                                   54, 46, 34, 45, 47, 41, 40, 43, 49, 44, 42, 58, 51, 31, 10, 24, 9,
+                                   1, 8, 26, 56, 3, 57, 22, 2, 4, 7, 20, 0, 6, 5, 18, 30, 12,
+                                   19, 17, 14, 11, 21, 15, 16, 13, 23, 27, 25, 29, 28]}
+
+shank0sites = [[6, 5], [6, 7], [5, 7], [5, 4], [7, 4], [7, 8], [4, 8], [4, 3], [8, 3], [8, 9], [3, 9], [3, 2], [9, 2],
+               [9, 10], [2, 10], [2, 1], [10, 1]]
+shank1sites = [[16, 15], [15, 14], [14, 13], [12, 11], [16, 17], [15, 17], [14, 18], [13, 19], [12, 20], [17, 14],
+               [18, 13], [19, 12], [20, 11],
+               [16, 17], [17, 18], [18, 19], [19, 20]]
+shank2sites = [[26, 25], [25, 24], [24, 23], [23, 22], [22, 21],
+               [26, 27], [27, 28], [28, 29], [29, 30],
+               [25, 27], [27, 24], [24, 28], [28, 23], [23, 29], [29, 22], [22, 30], [30, 21]]
+shank3sites = [[40, 35], [35, 34], [34, 33], [33, 32], [32, 31],
+               [40, 41], [41, 42], [42, 43], [43, 44],
+               [35, 41], [41, 34], [34, 42], [42, 33], [33, 43], [43, 32], [32, 44], [44, 31]]
+shank4sites = [[50, 49], [49, 48], [48, 47], [47, 46], [46, 45],
+               [50, 51], [51, 52], [52, 53], [53, 54],
+               [49, 51], [51, 48], [48, 52], [52, 47], [47, 53], [53, 46], [46, 54], [54, 45]]
+shank5sites = [[60, 59], [59, 58], [58, 57], [57, 56], [56, 55],
+               [60, 61], [61, 62], [62, 63], [63, 64],
+               [59, 61], [61, 58], [58, 62], [62, 57], [57, 63], [63, 56], [56, 64], [64, 55]]
+extra_sites = [[36, 39], [39, 38], [38, 37]]
+
+channel_groups = {
+    # Shank index.
+    0:
+        {
+            # List of channels to keep for spike detection.
+            'channels': calc_channel_list(shank0sites, chan_translation, bad_channels=[]),
+
+            # Adjacency graph. Dead channels will be automatically discarded
+            # by considering the corresponding subgraph.
+            'graph': remap_sites_to_channels(shank0sites, chan_translation),
+
+
+            # 2D positions of the channels, only for visualization purposes
+            # in KlustaViewa. The unit doesn't matter.
+            'geometry': {  # this is relative to spikeGL...
+                           0: (0, 0),
+                           31: (5, 10),
+                           1: (-6, 20),
+                           30: (7, 30),
+                           2: (-8, 40),
+                           29: (9, 50),
+                           3: (-10, 60),
+                           28: (11, 70),
+                           4: (-12, 80),
+                           27: (13, 90),
+                           5: (-14, 100),
+                           26: (15, 110),
+                           6: (-16, 120),
+                           25: (17, 130),
+                           7: (-18, 140),
+                           24: (19, 150),
+            }
+        },
+    1: {
+        'channels': calc_channel_list(shank1sites, chan_translation, bad_channels=[]),
+        'graph': remap_sites_to_channels(shank1sites, chan_translation),
+        'geometry': {  # this is relative to spikeGL...
+                       16: (0, 0),
+                       12: (5, 10),
+                       8: (-6, 20),
+                       17: (7, 30),
+                       15: (-8, 40),
+                       18: (9, 50),
+                       11: (-10, 60),
+                       19: (11, 70),
+                       14: (-12, 80),
+                       20: (13, 90),
+                       10: (-14, 100),
+                       21: (15, 110),
+                       13: (-16, 120),
+                       22: (17, 130),
+                       9: (-18, 140),
+                       23: (19, 150),
+        }
+
+
+    },
+    2: {
+        'channels': calc_channel_list(shank2sites, chan_translation, bad_channels=[]),
+        'sites': remap_sites_to_channels(shank2sites, chan_translation),
+        'geometry': {  # this is relative to spikeGL...
+                       60: (0, 0),
+                       32: (5, 10),
+                       33: (-6, 20),
+                       56: (7, 30),
+                       34: (-8, 40),
+                       63: (9, 50),
+                       35: (-10, 60),
+                       59: (11, 70),
+                       36: (-12, 80),
+                       62: (13, 90),
+                       37: (-14, 100),
+                       58: (15, 110),
+                       38: (-16, 120),
+                       61: (17, 130),
+                       39: (-18, 140),
+                       57: (19, 150),
+        }
+    },
+    3: {
+        'channels': calc_channel_list(shank3sites, chan_translation, bad_channels=[]),
+        'graph': remap_sites_to_channels(shank3sites, chan_translation),
+        'geometry': {  # this is relative to spikeGL...
+                       47: (0, 0),
+                       48: (5, 10),
+                       46: (-6, 20),
+                       49: (7, 30),
+                       45: (-8, 40),
+                       50: (9, 50),
+                       44: (-10, 60),
+                       51: (11, 70),
+                       43: (-12, 80),
+                       52: (13, 90),
+                       42: (-14, 100),
+                       53: (15, 110),
+                       41: (-16, 120),
+                       54: (17, 130),
+                       40: (-18, 140),
+                       55: (19, 150),
+        },
+    },
+    4: {
+        'channels': calc_channel_list(shank4sites, chan_translation, bad_channels=[]),
+        'graph': remap_sites_to_channels(shank4sites, chan_translation),
+        'geometry': {  # this is relative to spikeGL...
+        }
+    },
+    5: {
+        'channels': calc_channel_list(shank5sites, chan_translation, bad_channels=[]),
+        'graph': remap_sites_to_channels(shank5sites, chan_translation),
+        'geometry': {  # this is relative to spikeGL...
+        }
+    },
+    6: {'channels': calc_channel_list(extra_sites, chan_translation, bad_channels=[]),
+        'graph': remap_sites_to_channels(extra_sites, chan_translation),
+        'geometry': {}
+    }
+}

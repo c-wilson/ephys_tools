@@ -14,6 +14,8 @@ users to parse data the way that makes sense for analysis at analysis run-time.
 Information to recreate substructures (ie trials) are stored with the data.
 4.  Only two files should be required once data are processed: a raw data file and a processed data file. All metadata 
 should be included within these files and propagated through the processing system.  
+5.  Data and metadata should be merged early in the processing stream and should be persistent through subsequent 
+ processing and analysis steps and data structures.
   
 
 It is designed with the following packages:
@@ -23,14 +25,14 @@ ephys_tools.data_handling
 
 This package contains packages for:  
   
-1.  <u>ephys_tools.data_handling.pre-sort</u> parses data for sorting with the KlustaSuite of sofware (citation).  
-2.  <u>ephys_tools.data_handling.post-sort</u> parses data into a structure that is useful for analysis. (See below for 
+-  <u>ephys_tools.data_handling.pre-sort</u> parses data for sorting with the KlustaSuite of sofware (citation).  
+-  <u>ephys_tools.data_handling.post-sort</u> parses data into a structure that is useful for analysis. (See below for
 file structure).  
-3.  <u>ephys_tools.data_handling.data_classes</u> module provides OO python interface for loading and manipulating data 
+-  <u>ephys_tools.data_handling.data_classes</u> module provides OO python interface for loading and manipulating data 
 created by the above packages.  
-4.  <u>ephys_tools.data_handling.exporters</u> package providing modules to export HDF5 file data to other file formats 
+-  <u>ephys_tools.data_handling.exporters</u> package providing modules to export HDF5 file data to other file formats 
 (ie Matlab). Not currently implemented and may not be necessary.  
-  
+
 <b>This also contains a file_structure_readme.md as a reference to the file structure.</b>
 
 
