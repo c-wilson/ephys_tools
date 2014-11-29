@@ -38,7 +38,6 @@ class PreProcessSess(object):
         return
 
     def generate_rec_prms(self):
-        #TODO: move this to the rec handler.
         for rec, runs in self.parameters['raw_data_files'].iteritems():
             tmp_rec_prms = deepcopy(self.parameters)
             tmp_rec_prms['raw_data_files'] = runs
@@ -56,7 +55,7 @@ class PreProcessSess(object):
 
     def process_recs(self):
         for rec, fn in self.rec_prm_fns.iteritems():
-            # TODO: think about parallelizing this?? (complicated: needs to factor cores available-(nshanks*nrecs))
+            # TODO: think about parallelizing this?? (complicated: needs to factor ncores available and memory available-(nshanks*nrecs))
             stime = time.time()
             print 'Preprocessing rec ' + str(rec)
             self.recs[rec] = PreProcessRec(fn)
@@ -198,14 +197,12 @@ class PreProcessRun(object):
         self.channels, self.chan_idxes = calc_channels(self.sgl_meta, rec_prms)  # shape = (channels,)
         self.nchannels = len(self.channels)
         self.ephys_channels = calc_ephys_channels(prb)
-        self.nephys_channels = len(self.ephys_channels)
+        nephys_channels = len(self.ephys_channels)
         self.rec_h5_obj = rec_h5_obj
-        assert rec_prms['nchannels'] == self.nephys_channels, \
-            'Number of neural channels specified in .prm file does not match the number of ' \
-            'channels specified in the .prb file.'
-        # TODO: check that .prm file parameters match the .sgl_meta file parameters!
-
-        self.add_voyeur_behavior_data()
+        if rec_prms['nchannels'] != nephys_channels:  #nchannels in rec parameters file is only neural!
+            print ('WARNING: Number of neural channels specified in .prm file does not match the number of ' \
+                   'channels specified in the .prb file.')
+        # self.add_voyeur_behavior_data()
         self.edata = self.add_raw_ephys_data()
 
         if 'pl_trigger' in self.edata.keys():
@@ -215,7 +212,7 @@ class PreProcessRun(object):
             self.edata['neural'].rename('data')  # make the raw data into the data stream.
             self.data_plfilt = self.edata
 
-    def add_raw_ephys_data(self, max_load=4e9):
+    def add_raw_ephys_data(self, max_load=1e9):
         """
 
         :param rec_h5_obj: h5 file object from the record.
@@ -225,14 +222,15 @@ class PreProcessRun(object):
 
         filesize = os.path.getsize(self.bin_fn)
         expct_rows = filesize / self.nchannels / 2
-        # raw_data_record = rec_h5_obj.create_earray(self.run_group, 'data_raw', atom=tables.Int16Atom(),
-        #                                     shape=(0, self.nephys_channels), title='raw (neural) binary edata',
-        #                                     expectedrows=expct_rows)
-        data = {}
+        data = {}  # dictionary to hold all of the data array objects (neural and metadata streams).
         for k, v in self.chan_idxes.iteritems():
-            data[k] = self.rec_h5_obj.create_earray(self.run_group, k, atom=tables.Int16Atom(),
-                                                            shape=(0, len(v)), title='raw %s edata' % k,
-                                                            expectedrows=expct_rows)
+            data[k] = self.rec_h5_obj.create_earray(self.run_group,
+                                                    name=k,
+                                                    atom=tables.Int16Atom(),
+                                                    shape=(0, len(v)),
+                                                    title='raw %s edata' % k,
+                                                    expectedrows=expct_rows)
+            data[k]._v_attrs['bin_filename'] = self.bin_fn
 
         f = open(self.bin_fn, 'rb')
         ld_q = int(max_load) / int(self.nchannels)  # automatically floors this value. a ceil wouldn't be bad
@@ -247,8 +245,14 @@ class PreProcessRun(object):
             for k, v in data.iteritems():
                 idx = self.chan_idxes[k]
                 v.append(arr[:, idx])
+                v.flush()
+            pc = float(ld_count)/float(filesize) * 100.
+            if pc > 100.:
+                pc = 100.
+            print '\t\t\t... %0.1d %% complete' % pc
         f.close()
-            # raw_data_record.append()
+        self.run_group._v_attrs['bin_filename'] = str(self.bin_fn)
+        self.rec_h5_obj.flush()
         return data
 
     def add_voyeur_behavior_data(self):
@@ -257,12 +261,14 @@ class PreProcessRun(object):
 
         :return:
         """
+        print '\t\tAdding Voyeur data to kwd...'
         beh_h5 = tables.open_file(self.beh_fn, mode='r')
+        # will copy the voyeur data along with metadata attributes.
+        beh_group = self.rec_h5_obj.copy_node(beh_h5.root, self.run_group, newname='Voyeur_data', recursive=True)
+        self.run_group._v_attrs['Voyeur_filename'] = str(self.beh_fn)  # save the filename for later, just in case...
+        self.rec_h5_obj.flush()
 
-        #TODO: add system to move metadata and data from beh_h5 into the kwd file.
-
-        beh_dst_grp = self.rec_h5_obj.create_group(self.run_group, 'Voyeur_data')
-        self.rec_h5_obj.copy_children(beh_h5.root, beh_dst_grp) # will copy the voyeur data along with metadata attributes.
+        beh_h5.close()
 
 
     def rm_pl_noise(self, rec_h5_obj, pl_trig_chan):
@@ -279,7 +285,7 @@ class PreProcessRun(object):
                                                   shape=(data_raw.shape[0], 0),
                                                   title='pl trigger (60 Hz) filtered neural data',
                                                   expectedrows=data_raw.shape[1])
-        print '\t\tPL filtering: Loading pl trigger'
+        print '\t\tPL filtering neural channels. Loading pl_trigger.'
         pl_trig_sig = self.edata['pl_trigger'].read()[:, 0]  # array is multidimensional, so we just want the first column
         threshold = np.mean(pl_trig_sig)
         pl_trig_log = pl_trig_sig > threshold
@@ -293,7 +299,7 @@ class PreProcessRun(object):
         # use only as much memory as loading a single channel of data at a time at the expense of speed.
         for ch_i in xrange(n_ch):
             chan_sig = data_raw[:, ch_i]
-            print '\t\tFiltering channel: %i of %i...' % (ch_i, n_ch)
+            print '\t\t\tfiltering channel %i of %i...' % (ch_i, n_ch)
             sig_len = chan_sig.size
             chan_sig = chan_sig - chan_sig.mean()
             for i, edge in enumerate(pl_edge_idx):
@@ -307,6 +313,7 @@ class PreProcessRun(object):
                 l = end - st
                 chan_sig[st:end] -= pl_template[:l]
             filtered_data_array.append(chan_sig[:, np.newaxis])  # save processed once complete with every channel.
+            filtered_data_array.flush()
         return filtered_data_array
 
 
@@ -382,8 +389,8 @@ def calc_channels(sgl_meta, prms):
                     trans.append(np.where(chan_arr==ch)[0][0])
             channel_to_idx[k] = trans
         except IndexError:  # this will happen when the channel is not found in the channel array (from meta file)
-            print('WARNING: channel %i was not recorded according to spikeGL meta file! '
-                  'No "%s" signal will be copied' %(ch, k))
+            print('WARNING: channel %i was not recorded, according to spikeGL meta file! '
+                  'No "%s" signal will be copied' % (ch, k))
 
     return chan_arr, channel_to_idx
 
