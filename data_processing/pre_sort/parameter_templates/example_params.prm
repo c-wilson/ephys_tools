@@ -118,3 +118,5 @@ SaveCovarianceMeans = 0
 UseMaskedInitialConditions = 1 
 AssignToFirstClosestMask = 1
 UseDistributional = 1
+
+RamLimitGB = 120.  # added, this should not be required in the future when kk can see ram availability.
