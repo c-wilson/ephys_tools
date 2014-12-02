@@ -1,6 +1,8 @@
 __author__ = 'chris'
 
+
 from ephys_tools.data_processing.pre_sort.utils.probe_utils import remap_sites_to_channels, calc_channel_list
+
 
 
 chan_translation = {  # site number (NEURONEXUS) and sgl channel numbers (Chris mapped)
@@ -31,6 +33,8 @@ shank5sites = [[60, 59], [59, 58], [58, 57], [57, 56], [56, 55],
                [60, 61], [61, 62], [62, 63], [63, 64],
                [59, 61], [61, 58], [58, 62], [62, 57], [57, 63], [63, 56], [56, 64], [64, 55]]
 extra_sites = [[36, 39], [39, 38], [38, 37]]
+
+
 
 channel_groups = {
     # Shank index.
@@ -91,7 +95,7 @@ channel_groups = {
     },
     2: {
         'channels': calc_channel_list(shank2sites, chan_translation, bad_channels=[]),
-        'sites': remap_sites_to_channels(shank2sites, chan_translation),
+        'graph': remap_sites_to_channels(shank2sites, chan_translation),
         'geometry': {  # this is relative to spikeGL...
                        60: (0, 0),
                        32: (5, 10),
@@ -132,21 +136,21 @@ channel_groups = {
                        40: (-18, 140),
                        55: (19, 150),
         },
-    },
+        },
     4: {
         'channels': calc_channel_list(shank4sites, chan_translation, bad_channels=[]),
         'graph': remap_sites_to_channels(shank4sites, chan_translation),
         'geometry': {  # this is relative to spikeGL...
-        }
+                    }
     },
-    5: {
+    5:{
         'channels': calc_channel_list(shank5sites, chan_translation, bad_channels=[]),
         'graph': remap_sites_to_channels(shank5sites, chan_translation),
         'geometry': {  # this is relative to spikeGL...
-        }
+                    }
     },
-    6: {'channels': calc_channel_list(extra_sites, chan_translation, bad_channels=[]),
-        'graph': remap_sites_to_channels(extra_sites, chan_translation),
-        'geometry': {}
+    6:{'channels': calc_channel_list(extra_sites, chan_translation, bad_channels=[]),
+       'graph': remap_sites_to_channels(extra_sites, chan_translation),
+       'geometry': {}
     }
 }
