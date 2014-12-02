@@ -38,3 +38,15 @@ def calc_channel_list(site_graph, chan_translation, bad_channels=[]):
                 chan_list.append(chan)
     chan_list.sort()  # sort in place.
     return chan_list
+
+
+def load_probe(filename):
+    """
+    loads channel groups in probe file as a variable. uses a 'global' namespace unlike kk, so you can use functions.
+    :param filename: fullfilename to prb file.
+    :return: channel_groups dict.
+    """
+
+    prb = {}
+    execfile(filename, prb)
+    return prb['channel_groups']
