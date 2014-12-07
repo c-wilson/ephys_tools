@@ -20,9 +20,9 @@ def remap_sites_to_channels(site_graph, chan_translation):
     # make translation for acquisition system (should be defined as global).
     if acquisition_system == '':
         ct = copy.deepcopy(chan_translation['sites'])
-        # NOTE: assumes that site maps start with site 1, not with site 0!!!.
+        # NOTE: assumes that site maps start with site 1, not with site 0!!!. Also that channels start at 0, not 1,
+        # which is a good assumption if you aren't using matlab.
         trans = [x-1 for x in ct]
-        # print chan_translation['']
     else:
         trans = chan_translation[acquisition_system]
 
@@ -67,7 +67,6 @@ def make_geometry_by_channels(geo_by_site, chan_translation):
         ct = copy.deepcopy(chan_translation['sites'])
         # NOTE: assumes that site maps start with site 1, not with site 0!!!.
         trans = [x-1 for x in ct]
-        # print chan_translation['']
     else:
         trans = chan_translation[acquisition_system]
 
@@ -88,10 +87,6 @@ def load_probe(filename, acq_system=''):
     """
     global acquisition_system
     acquisition_system = acq_system
-    print 'acquisiton set'
-    print globals()
-    # print acquisition_system
-    # print filename
     prb = {}
     execfile(filename, globals(), prb)
 

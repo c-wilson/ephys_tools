@@ -6,7 +6,7 @@ __author__ = 'chris'
 
 import tables
 import numpy as np
-from utils.probe_utils import load_probe
+from utils.probe_util import load_probe
 import sys
 
 

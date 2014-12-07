@@ -13,6 +13,8 @@ import \
 from utils import param_util
 import utils.probe_util as prb_utils
 import sys
+from subprocess import Popen
+import logging
 
 
 
@@ -31,16 +33,19 @@ class PreProcessSess(object):
         :return:
         """
         self.path = os.path.split(sess_prm_ffn)[0]
+        # self.processed_path = os.path.join(self.path, '/processed')
+        self.force_reprocess = force_reprocess
         self.prm_ffn = sess_prm_ffn  # this is a fullfilename.
         self.parameters = param_util.get_params(sess_prm_ffn)
         self.prb = prb_utils.load_probe(os.path.join(self.path, self.parameters['prb_file']),
                                         acq_system=self.parameters['acquisition_system'])
-        print prb_utils.acquisition_system
+        # print prb_utils.acquisition_system
         prb_utils.write_probe(self.prb, os.path.join(self.path, self.parameters['prb_file']))
         self.rec_prm_fns = {}
         self.generate_rec_prms()
         self.recs = {}
         self.process_recs()
+        # TODO: make system move raw data files to new directory or make process files in new directory.
         # TODO: make it possible to reprocess from already generated raw.kwd files without rewriting them!
         return
 
@@ -60,40 +65,16 @@ class PreProcessSess(object):
 
     def process_recs(self):
         for rec, fn in self.rec_prm_fns.iteritems():
-            # TODO: think about parallelizing this?? (complicated: needs to factor ncores available and memory available-(nshanks*nrecs))
             stime = time.time()
-            print 'Preprocessing rec ' + str(rec)
-            self.recs[rec] = PreProcessRec(fn)
-            etime = time.time() - stime
-            print 'Rec ' + str(rec) + ' processing completed in ' + str(etime) + ' sec.'
-
-
-            # try:
-            #     stime = time.time()
-            #     print 'Preprocessing rec ' + str(rec)
-            #     self.recs[rec] = PreProcessRec(fn)
-            #     etime = time.time() - stime
-            #     print 'Rec '+ str(rec) + ' processing completed in ' + str(etime) + ' sec.'
-            # except Exception as msg:
-            #     etime = time.time() - stime
-            #     print '*ERROR* Rec '+ str(rec) + ' processing failed in ' + str(etime) + ' sec.'
-            #     print msg
-        print 'Session processing completed.'
-        return
-
-    def run_klusta(self, **kwargs):
-        """
-        runs run_klusta() for each rec instance.
-        :param kwargs: to pass to su
-        :return: none
-        """
-        for key, rec in self.recs.iteritems():
+            logging.info('Preprocessing rec ' + str(rec))
             try:
-                print 'Running klusta for rec ' + str(key)
-                rec.run_klusta(**kwargs)
+                self.recs[rec] = PreProcessRec(fn, self.force_reprocess)
+                etime = time.time() - stime
+                logging.info('Rec ' + str(rec) + ' preprocessing completed in ' + str(etime) + ' sec.')
             except Exception as msg:
-                print 'ERROR klusta run failed for rec ' + str(key)
-                print msg
+                logging.exception('error processing rec %s:'%rec)
+                print 'error processing rec %s'%rec
+        logging.info('Session processing completed.')
         return
 
 
@@ -101,8 +82,7 @@ class PreProcessRec(object):
     """
     Classdocs
     """
-    #TODO: copy voyeur edata here.
-    def __init__(self, prm_ffn, **kwargs):
+    def __init__(self, prm_ffn, force_reprocess=False, **kwargs):
         """
 
         :param prm_ffn: fullfilename to .prm file for the rec.
@@ -110,24 +90,26 @@ class PreProcessRec(object):
         :return:
         """
         self.path = os.path.split(prm_ffn)[0]
+        self.force_reprocess = force_reprocess
         self.prm_ffn = prm_ffn  # this is a fullfilename!
         self.parameters = param_util.get_params(filename=prm_ffn)
         self.prb = prb_utils.load_probe(os.path.join(self.path, self.parameters['prb_file']),
                                         acq_system=self.parameters['acquisition_system'])
         prb_utils.write_probe(self.prb, os.path.join(self.path, self.parameters['prb_file']))
-        # TODO: reuse raw.kwd files without rewriting.
         self.data_ffn = self.path + self.parameters['experiment_name'] + '.raw.kwd'
-        self.data_file = tables.open_file(self.data_ffn, 'w')  # CURRENTLY OVERWRITES!!!
-        self.data_file.create_group('/', 'recordings')
-        self.run_ephys_fns = []
-        self.run_beh_fns = []
-        for run in self.parameters['raw_data_files']:
-            self.run_ephys_fns.append(run[0])
-            self.run_beh_fns.append(run[1])
-        self.runs = []
-        self.append_runs()
-        self.data_file.close()
+        if self.force_reprocess or not os.path.exists(self.data_ffn):
+            self.data_file = tables.open_file(self.data_ffn, 'w')  # CURRENTLY OVERWRITES!!!
+            self.data_file.create_group('/', 'recordings')
+            self.run_ephys_fns = []
+            self.run_beh_fns = []
+            for run in self.parameters['raw_data_files']:
+                self.run_ephys_fns.append(run[0])
+                self.run_beh_fns.append(run[1])
+            self.runs = []
+            self.append_runs()
+            self.data_file.close()
         self.update_prm_file()
+        self.run_klusta()
         return
 
     def update_prm_file(self):
@@ -150,23 +132,11 @@ class PreProcessRec(object):
         if isinstance(self.run_ephys_fns, str):
             self.run_ephys_fns = [self.run_ephys_fns]  # make into list
         for i, (run_ephys_fn, run_beh_fn) in enumerate(zip(self.run_ephys_fns, self.run_beh_fns)):
-            # run_data_ffn = os.path.join(self.rec_path, run_data_fn)
-            # print '\tPreprocessing run ' + str(i)
-            # run_grp = self.data_file.create_group('/recordings',str(i))
-            # self.runs.append(PreProcessRun(run_data_ffn, run_grp, self.data_file, self.prms, self.prb))
             run_ephys_fn = os.path.join(self.path, run_ephys_fn)
             run_beh_fn = os.path.join(self.path, run_beh_fn)
-            print '\tPreprocessing run ' + str(i)
+            logging.info( '\tPreprocessing run ' + str(i))
             run_grp = self.data_file.create_group('/recordings', str(i))
             self.runs.append(PreProcessRun(run_ephys_fn, run_beh_fn, run_grp, self.data_file, self.parameters, self.prb))
-            # try:
-            #     # run_grp = self.data_file.create_group('/recordings', str(i))
-            #
-            #
-            #     # self.runs.append(PreProcessRun(run_data_ffn, run_grp, self.data_file, self.parameters, self.prb))
-            # except Exception as msg:
-            #     print 'ERROR: problem with run: ' + run_data_fn
-            #     print msg
 
 
     def run_klusta(self, **kwargs):
@@ -175,9 +145,25 @@ class PreProcessRec(object):
         :param kwargs:
         :return:
         """
-        #TODO: add this back with subprocess support.
-        # klusta_entry.run_all(self.prm_ffn, **kwargs)
-        pass
+        error_out_fn = 'klusta_log_%s.log'%self.data_ffn
+        cmd = 'klusta %s --overwrite' %  self.prm_ffn
+        logging.debug('opening subprocess: %s' %cmd)
+        with open(os.devnull, 'w') as devnull:
+            self.klusta_instance = Popen(cmd,
+                                         shell=True,
+                                         stdout=devnull,
+                                         stderr=open(error_out_fn, 'w', buffering=0))
+        self.klusta_pid = self.klusta_instance.pid
+        logging.info('\n ** Running klusta on %s. Running on PID: %i\n\n' %(self.data_ffn, self.klusta_pid))
+
+        return
+
+    def wait_klusta(self):
+        exit_code = self.klusta_instance.wait()
+        if exit_code != 0:
+            logging.error('Klusta instance for %s completed with exit code %i' % (self.data_ffn, exit_code))
+        else:
+            logging.info('Klusta instance for %s completed with exit code %i' % (self.data_ffn, exit_code))
 
 
 class PreProcessRun(object):
@@ -206,7 +192,7 @@ class PreProcessRun(object):
         nephys_channels = len(self.ephys_channels)
         self.rec_h5_obj = rec_h5_obj
         if rec_prms['nchannels'] != nephys_channels:  #nchannels in rec parameters file is only neural!
-            print ('WARNING: Number of neural channels specified in .prm file does not match the number of ' \
+            logging.warning('Number of neural channels specified in .prm file does not match the number of ' \
                    'channels specified in the .prb file.')
         # self.add_voyeur_behavior_data()
         self.edata = self.add_raw_ephys_data()
@@ -214,7 +200,7 @@ class PreProcessRun(object):
         if 'pl_trigger' in self.edata.keys():
             self.data_plfilt = self.rm_pl_noise(rec_h5_obj, rec_prms['pl_trig_chan'])
         else:
-            print 'NO powerline trigger signal found, using raw data without filtering.'
+            logging.warning('NO powerline trigger signal found, using raw data without filtering.')
             self.edata['neural'].rename('data')  # make the raw data into the data stream.
             self.data_plfilt = self.edata
 
@@ -237,12 +223,13 @@ class PreProcessRun(object):
                                                     title='raw %s edata' % k,
                                                     expectedrows=expct_rows)
             data[k]._v_attrs['bin_filename'] = self.bin_fn
+            data[k]._v_attrs['acquisition_system'] = self.prms['acquisition_system']
 
         f = open(self.bin_fn, 'rb')
         ld_q = int(max_load) / int(self.nchannels)  # automatically floors this value. a ceil wouldn't be bad
         ld_iter = ld_q * self.nchannels  # calculate number of values to read in each iteration
         ld_count = 0
-        print '\t\tAdding raw run recording data to kwd...'
+        logging.info('\t\tAdding raw run recording data to kwd...')
         while ld_count < filesize:
             arr = np.fromfile(f, np.int16, ld_iter)
             ld_count += ld_iter
@@ -255,7 +242,7 @@ class PreProcessRun(object):
             pc = float(ld_count)/float(filesize) * 100.
             if pc > 100.:
                 pc = 100.
-            print '\t\t\t... %0.1d %% complete' % pc
+            logging.info('\t\t\t... %0.1d %% complete' % pc)
         f.close()
         self.run_group._v_attrs['bin_filename'] = str(self.bin_fn)
         self.rec_h5_obj.flush()
@@ -267,7 +254,7 @@ class PreProcessRun(object):
 
         :return:
         """
-        print '\t\tAdding Voyeur data to kwd...'
+        logging.info('\t\tAdding Voyeur data from %s to kwd...'%self.beh_fn )
         beh_h5 = tables.open_file(self.beh_fn, mode='r')
         # will copy the voyeur data along with metadata attributes.
         beh_group = self.rec_h5_obj.copy_node(beh_h5.root, self.run_group, newname='Voyeur_data', recursive=True)
@@ -291,7 +278,7 @@ class PreProcessRun(object):
                                                   shape=(data_raw.shape[0], 0),
                                                   title='pl trigger (60 Hz) filtered neural data',
                                                   expectedrows=data_raw.shape[1])
-        print '\t\tPL filtering neural channels. Loading pl_trigger.'
+        logging.info('\t\tPL filtering neural channels. Loading pl_trigger.')
         pl_trig_sig = self.edata['pl_trigger'].read()[:, 0]  # array is multidimensional, so we just want the first column
         threshold = np.mean(pl_trig_sig)
         pl_trig_log = pl_trig_sig > threshold
@@ -305,7 +292,7 @@ class PreProcessRun(object):
         # use only as much memory as loading a single channel of data at a time at the expense of speed.
         for ch_i in xrange(n_ch):
             chan_sig = data_raw[:, ch_i]
-            print '\t\t\tfiltering channel %i of %i...' % (ch_i, n_ch)
+            logging.info('\t\t\tfiltering channel %i of %i...' % (ch_i, n_ch))
             sig_len = chan_sig.size
             chan_sig = chan_sig - chan_sig.mean()
             for i, edge in enumerate(pl_edge_idx):
@@ -365,7 +352,7 @@ def calc_channels(sgl_meta, prms):
                     trans.append(np.where(chan_arr==ch)[0][0])
             channel_to_idx[k] = trans
         except IndexError:  # this will happen when the channel is not found in the channel array (from meta file)
-            print('WARNING: channel %i was not recorded, according to spikeGL meta file! '
+            logging.warning('WARNING: channel %i was not recorded, according to spikeGL meta file! '
                   'No "%s" signal will be copied' % (ch, k))
 
     return chan_arr, channel_to_idx
@@ -388,6 +375,33 @@ def read_meta_file(fn):
         out[lnsp[0]] = lnsp[1]
     return out
 
+def is_exe(fpath):
+    return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+def which(program):
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
+
+def print_path():
+    print '\n'.join(os.environ["PATH"].split(os.pathsep))
+
+def check_path():
+    prog = 'klusta'
+    if not (which(prog) or which(prog + '.exe')):
+        print("Error: '{0:s}' is not in your system PATH".format(prog))
+        return False
+    return True
+
 
 def main():
     """
@@ -395,10 +409,14 @@ def main():
     :return:
     """
     # TODO: send output to log file (or add the option to do so).
-    dtg = time.strftime('%Y%m%d_%H%M%S')
-    sys.stdout = open('process_log_%s.log' % dtg, 'w', buffering=10)
 
-    if not klusta_entry.check_path():  # check that klustakwik is in path.
+    try:  # check that klusta is accessible before continuing.
+        t = Popen('klusta', shell=True)
+        t.wait(3)
+    except OSError:
+        raise EnvironmentError('klusta executable not found, make sure you are in the klusta environment before running!')
+
+    if not check_path():  # check that klustakwik is in path.
         return
 
     parser = argparse.ArgumentParser(description='Run preprocessing for kk3.')
@@ -406,8 +424,8 @@ def main():
                         help='.prm filename')
     parser.add_argument('--debug', action='store_true', default=False,
                         help='only run clustering on first few seconds of edata')
-    parser.add_argument('--overwrite', action='store_true', default=False,
-                        help='overwrite existing KWIK files if they exist')
+    parser.add_argument('--repreprocess', action='store_true', default=False,
+                        help='overwrite existing raw.kwd file if they exist.')
     parser.add_argument('--detect-only', action='store_true', default=False,
                         help='run only spikedetekt')
     parser.add_argument('--cluster-only', action='store_true', default=False,
@@ -421,15 +439,20 @@ def main():
 
     prms = param_util.get_params(args.prm_filename)
     if type(prms['raw_data_files']) is dict:
-        pp = PreProcessSess(args.prm_filename)
-    else:
-        pp = PreProcessRec(args.prm_filename)
+        pp = PreProcessSess(args.prm_filename, args.repreprocess)
 
-    print '\n\nPREPROCESS COMPLETE, running klustas'
+    res = [x.wait_klusta() for x in pp.recs.values()]
+
+
+    # print '\n\nPREPROCESS COMPLETE, running klustas'
 
 
     return None
 
 
 if __name__ == "__main__":
+    dtg = time.strftime('%Y%m%d_%H%M%S')
+    logging.basicConfig(filename='process_%s.log'%dtg, level=logging.INFO)
+
     main()
+
