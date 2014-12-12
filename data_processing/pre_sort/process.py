@@ -243,6 +243,7 @@ class PreProcessRun(object):
                                                     expectedrows=expct_rows)
             data[k]._v_attrs['bin_filename'] = self.bin_fn
             data[k]._v_attrs['acquisition_system'] = self.prms['acquisition_system']
+            data[k]._v_attrs['sampling_rate_Hz'] = self.prms['sample_rate']
 
         f = open(self.bin_fn, 'rb')
         ld_q = int(max_load) / int(self.nchannels)  # automatically floors this value. a ceil wouldn't be bad
