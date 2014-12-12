@@ -25,7 +25,7 @@ class PreProcessSess(object):
     """
 
 
-    def __init__(self, sess_prm_ffn, force_reprocess=False):
+    def __init__(self, sess_prm_ffn, force_reprocess, klusta_args):
         """
 
         :param sess_prm_ffn: fullfilename string for session .prm file
@@ -44,7 +44,7 @@ class PreProcessSess(object):
         self.rec_prm_fns = {}
         self.generate_rec_prms()
         self.recs = {}
-        self.process_recs()
+        self.process_recs(klusta_args)
         # TODO: make system move raw data files to new directory or make process files in new directory.
         # TODO: make it possible to reprocess from already generated raw.kwd files without rewriting them!
         return
@@ -63,12 +63,12 @@ class PreProcessSess(object):
             f.close()
         return
 
-    def process_recs(self):
+    def process_recs(self, klusta_args):
         for rec, fn in self.rec_prm_fns.iteritems():
             stime = time.time()
             logging.info('Preprocessing rec ' + str(rec))
             try:
-                self.recs[rec] = PreProcessRec(fn, self.force_reprocess)
+                self.recs[rec] = PreProcessRec(fn, self.force_reprocess, klusta_args)
                 etime = time.time() - stime
                 logging.info('Rec ' + str(rec) + ' preprocessing completed in ' + str(etime) + ' sec.')
             except Exception as msg:
@@ -82,13 +82,14 @@ class PreProcessRec(object):
     """
     Classdocs
     """
-    def __init__(self, prm_ffn, force_reprocess=False, **kwargs):
+    def __init__(self, prm_ffn, force_reprocess, klusta_args, **kwargs):
         """
 
         :param prm_ffn: fullfilename to .prm file for the rec.
         :param kwargs: not implemented
         :return:
         """
+        self.klusta_instance = None
         self.path = os.path.split(prm_ffn)[0]
         self.force_reprocess = force_reprocess
         self.prm_ffn = prm_ffn  # this is a fullfilename!
@@ -108,8 +109,9 @@ class PreProcessRec(object):
             self.runs = []
             self.append_runs()
             self.data_file.close()
+        #TODO: add case for not checking if PL filtered data is contained in H5 and re-making it from raw if not.
         self.update_prm_file()
-        self.run_klusta()
+        self.run_klusta(klusta_args)
         return
 
     def update_prm_file(self):
@@ -139,31 +141,49 @@ class PreProcessRec(object):
             self.runs.append(PreProcessRun(run_ephys_fn, run_beh_fn, run_grp, self.data_file, self.parameters, self.prb))
 
 
-    def run_klusta(self, **kwargs):
+    def run_klusta(self, klusta_args, **kwargs):
         """
 
         :param kwargs:
         :return:
         """
-        error_out_fn = 'klusta_log_%s.log'%self.data_ffn
-        cmd = 'klusta %s --overwrite' %  self.prm_ffn
-        logging.debug('opening subprocess: %s' %cmd)
+
+        if not (klusta_args['runkk'] + klusta_args['runsd']):
+            loggind.info('Skipping klusta for %s.' %self.data_ffn)
+            return
+
+        error_out_fn = '%s_klustalog.log'%self.data_ffn
+        cmd = 'klusta %s' %  self.prm_ffn
+        if klusta_args['runkk'] and not klusta_args['runsd']:
+            cmd += ' --cluster-only'
+        elif klusta_args['runsd'] and not klusta_args['runkk']:
+            cmd += ' --detect-only'
+
+        if klusta_args['overwrite']:
+            cmd += ' --overwrite'
+
+        logging.info('opening subprocess: %s' %cmd)
         with open(os.devnull, 'w') as devnull:
             self.klusta_instance = Popen(cmd,
                                          shell=True,
                                          stdout=devnull,
                                          stderr=open(error_out_fn, 'w', buffering=0))
         self.klusta_pid = self.klusta_instance.pid
-        logging.info('\n ** Running klusta on %s. Running on PID: %i\n\n' %(self.data_ffn, self.klusta_pid))
+        logging.info('\n ** Running klusta on %s. Running on PID: %i' %(self.data_ffn, self.klusta_pid))
 
         return
 
     def wait_klusta(self):
-        exit_code = self.klusta_instance.wait()
-        if exit_code != 0:
-            logging.error('Klusta instance for %s completed with exit code %i' % (self.data_ffn, exit_code))
+        if self.klusta_instance is not None:
+            exit_code = self.klusta_instance.wait()
+            if exit_code != 0:
+                logging.error('Klusta instance for %s completed with exit code %i' % (self.data_ffn, exit_code))
+            else:
+                logging.info('Klusta instance for %s completed with exit code %i' % (self.data_ffn, exit_code))
+                #TODO: delete PL filtered data node from run groups
         else:
-            logging.info('Klusta instance for %s completed with exit code %i' % (self.data_ffn, exit_code))
+            logging.warning('No klusta instance initiated for %s' % self.data_ffn)
+
 
 
 class PreProcessRun(object):
@@ -178,7 +198,7 @@ class PreProcessRun(object):
         :param prb:
         :return:
         """
-        # TODO: move the pl_trig_chan calculation to the rec class.
+
         assert isinstance(rec_h5_obj, tables.File)
         self.beh_fn = run_beh_fn
         self.prms = rec_prms
@@ -194,9 +214,8 @@ class PreProcessRun(object):
         if rec_prms['nchannels'] != nephys_channels:  #nchannels in rec parameters file is only neural!
             logging.warning('Number of neural channels specified in .prm file does not match the number of ' \
                    'channels specified in the .prb file.')
-        # self.add_voyeur_behavior_data()
+        self.add_voyeur_behavior_data()
         self.edata = self.add_raw_ephys_data()
-
         if 'pl_trigger' in self.edata.keys():
             self.data_plfilt = self.rm_pl_noise(rec_h5_obj, rec_prms['pl_trig_chan'])
         else:
@@ -410,11 +429,12 @@ def main():
     """
     # TODO: send output to log file (or add the option to do so).
 
-    try:  # check that klusta is accessible before continuing.
-        t = Popen('klusta', shell=True)
-        t.wait(3)
-    except OSError:
-        raise EnvironmentError('klusta executable not found, make sure you are in the klusta environment before running!')
+    # try:  # check that klusta is accessible before continuing.
+    #
+    #     t = Popen('klusta', stderr=open(os.devnull), shell=True)
+    #     t.wait()
+    # except OSError:
+    #     raise EnvironmentError('klusta executable not found, make sure you are in the klusta environment before running!')
 
     if not check_path():  # check that klustakwik is in path.
         return
@@ -426,25 +446,32 @@ def main():
                         help='only run clustering on first few seconds of edata')
     parser.add_argument('--repreprocess', action='store_true', default=False,
                         help='overwrite existing raw.kwd file if they exist.')
+    parser.add_argument('--preprocess_only',action='store_true', default=False,
+                        help='only run preprocess routine, not klusta')
     parser.add_argument('--detect-only', action='store_true', default=False,
                         help='run only spikedetekt')
     parser.add_argument('--cluster-only', action='store_true', default=False,
                         help='run only klustakwik (after spikedetekt has run)')
+    parser.add_argument('--overwrite', action='store_true', default=False,
+                       help='overwrite the KWIK files is they already exist')
     args = parser.parse_args()
     runsd, runkk = True, True
     if args.detect_only:
         runkk = False
     if args.cluster_only:
         runsd = False
+    if args.preprocess_only:
+        runsd = False
+        runkk = False
+
+    klusta_args = {'runkk': runkk, 'runsd': runsd, 'overwrite': args.overwrite}
 
     prms = param_util.get_params(args.prm_filename)
     if type(prms['raw_data_files']) is dict:
-        pp = PreProcessSess(args.prm_filename, args.repreprocess)
+        pp = PreProcessSess(args.prm_filename, args.repreprocess, klusta_args)
 
     res = [x.wait_klusta() for x in pp.recs.values()]
 
-
-    # print '\n\nPREPROCESS COMPLETE, running klustas'
 
 
     return None

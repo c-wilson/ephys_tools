@@ -109,8 +109,8 @@ kk_SplitEvery = 40
 # Penalties to reduce overclustering:
 # PenaltyK = 1, PenaltyKLogN = 0 for a AIC - use for mask mode (high channel count).
 # PenaltyK = 0, PenaltyKLogN = 1 for BIC - use for classic mode.
-kk_PenaltyK = 0
-kk_PenaltyKLogN = 1
+kk_PenaltyK = 1
+kk_PenaltyKLogN = 0
 
 kk_Subset = 1
 kk_PriorPoint = 1
