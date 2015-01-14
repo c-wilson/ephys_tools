@@ -1,8 +1,10 @@
+from __future__ import division
 __author__ = 'chris'
 
 """
 This is a module for making event structures consistent between Voyeur and output from the electophysiology system
 """
+
 import numpy as np
 import tables
 from serial_parser import parse_serial_stream
@@ -57,7 +59,7 @@ def make_trial_upload_events(raw_kwd, dest_file):
         rec = raw_kwd.get_node(u'/recordings/{0:d}'.format(r))
         serial_st = rec.serial_trial
         try:
-            fs = serial_st.get_attr('sampling_rate_Hz')
+            fs = serial_st.get_attr('sample_rate_Hz')
         except AttributeError:
             fs = 20833.
             logging.warning(u'Warning, no sampling rate specified for serial trial number. Default is set to 20833 Hz.')
@@ -70,6 +72,7 @@ def make_trial_upload_events(raw_kwd, dest_file):
         sample_offsets.append(offset)
         offset += len(serial_st)
     sample_offsets.append(offset)  #append the last offset value to close the end of the session.
+    grp._v_attrs['sample rate'] = fs
 
     # make superset of all fields. This will have fields that are not contained in all trials tables, so we'll have to
     # be careful for exemptions later on here.
@@ -167,6 +170,11 @@ def make_run_events(raw_kwd, dest_file):
         attr_sets.append(rec.Voyeur_data._v_attrs)
         start += len(rec.serial_trial)
         end_events.append(start)  # append the next start as the end of the current run.
+    try:
+        fs = rec.serial_trial.get_attr('sample_rate_Hz')
+    except AttributeError:
+        fs = 20833.
+    grp._v_attrs['sample_rate_Hz'] = fs
     table_desc = {}
     for attrs in attr_sets:
         for k in attrs._v_attrnamesuser:
@@ -299,11 +307,13 @@ class GenericEventHandler(object):
             return
         else:
             self.ev_grp = dest_file.create_group(u'/events', u'{0:s}'.format(self.stream_name), createparents=True)
+            self.ev_grp._v_attrs['sample_rate_Hz'] = self.fs
             self.ev_events = dest_file.create_carray(self.ev_grp, 'events', obj=self.events)
             dest_file.flush()
             if self.metadata_field_names is not None:
                 self.params_table = self.make_table()
                 self.populate_params()
+                dest_file.flush()
         return
 
     def build_stream(self):
@@ -316,6 +326,10 @@ class GenericEventHandler(object):
                 nd_st = u'/recordings/{0:d}/{1:s}'.format(rec, self.stream_name)
                 a = self.raw_kwd.get_node(nd_st)
                 st = np.append(st, a.read())
+            try:
+                self.fs = a.get_attr('sample_rate_Hz')
+            except AttributeError:
+                self.fs = 20833.
         except tables.NoSuchNodeError:
                 logging.warning(u'No {0:s} stream found for run {1:d} ({2:s})'.format(self.stream_name, rec, nd_st))
                 st = None
@@ -518,6 +532,7 @@ class FinalValveEventHandlerArduino(GenericEventHandler):
             return True
 
     def build_stream(self):
+        self.fs = 20833.
         return []
 
     def find_event_times(self, stream):
@@ -526,10 +541,10 @@ class FinalValveEventHandlerArduino(GenericEventHandler):
 
         try:
             recording = self.raw_kwd.get_node('/recordings/0/neural')
-            fs = recording._v_attrs['sampling_rate_Hz']
+            fs = recording._v_attrs['sample_rate_Hz']
         except:
             logging.warning('No sampling rate found in node raw.kwd/recordings/0/neural, '
-                            'defaulting to 20833.0 Hz (whisper).')
+                            'defaulting to 20833. Hz (whisper).')
             fs = 20833.
 
         up_events = []
