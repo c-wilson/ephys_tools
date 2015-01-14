@@ -3,7 +3,7 @@ __author__ = 'chris'
 
 
 import numpy as np
-import tables
+import tables as tb
 from scipy import signal
 import logging
 
@@ -17,8 +17,8 @@ stream_defs = {'sniff': 16}
 
 def main(raw_kwd_fn, destination):
     logging.info('Adding streams')
-    assert isinstance(destination, tables.File)
-    with tables.open_file(raw_kwd_fn, 'r') as raw_kwd:
+    assert isinstance(destination, tb.File)
+    with tb.open_file(raw_kwd_fn, 'r') as raw_kwd:
         for s_name, downsample_factor in stream_defs.iteritems():
             logging.info('Adding stream: {0}'.format(s_name))
             add_stream(s_name, raw_kwd, destination,  downsample_factor)
@@ -39,8 +39,8 @@ def add_stream(stream_name, raw_kwd, dest_file, downsample_factor=16, *args, **k
     :return:
     """
 
-    assert isinstance(dest_file, tables.File)
-    assert isinstance(raw_kwd, tables.File)
+    assert isinstance(dest_file, tb.File)
+    assert isinstance(raw_kwd, tb.File)
     assert isinstance(downsample_factor, int)
 
     n_recs = raw_kwd.root.recordings._v_nchildren
@@ -53,7 +53,7 @@ def add_stream(stream_name, raw_kwd, dest_file, downsample_factor=16, *args, **k
             s_dec = decimate(s_mem)
             dec_stream = np.concatenate((dec_stream, s_dec))
 
-        except tables.NoSuchNodeError:
+        except tb.NoSuchNodeError:
             if i == 0:
                 logging.warning('No array exists for stream "{0}" in first recording. This is probably because '
                                 'this stream was not recorded, so stream will be skipped.'.format(stream_name, i))
@@ -87,8 +87,8 @@ def add_lfp_stream(raw_kwd, dest_file, downsample_factor=16, *args, **kwargs):
     :return:
     """
     logging.info('Adding LFP.')
-    assert isinstance(dest_file, tables.File)
-    assert isinstance(raw_kwd, tables.File)
+    assert isinstance(dest_file, tb.File)
+    assert isinstance(raw_kwd, tb.File)
     assert isinstance(downsample_factor, int)
 
     l = 0
@@ -107,11 +107,11 @@ def add_lfp_stream(raw_kwd, dest_file, downsample_factor=16, *args, **kwargs):
     n_fs = o_fs / downsample_factor
     lfp = dest_file.create_earray('/streams',
                                   'LFP',
-                                  atom=tables.Int16Atom(),
+                                  atom=tb.Int16Atom(),
                                   shape=(0, n_ch),  # extending in the n_samples direction.
                                   title="local field potential ({0:0.1f} Hz)".format(n_fs),
                                   createparents=True,
-                                  filters=tables.Filters(complevel=6))
+                                  filters=tb.Filters(complevel=6))
     lfp.set_attr('sample_rate_Hz', n_fs)
     for i, record in enumerate(records):
         #calculate size of decimated signal:

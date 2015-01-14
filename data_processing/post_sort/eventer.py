@@ -6,7 +6,7 @@ This is a module for making event structures consistent between Voyeur and outpu
 """
 
 import numpy as np
-import tables
+import tables as tb
 from serial_parser import parse_serial_stream
 import logging
 try:
@@ -22,8 +22,8 @@ def main(raw_kwd_fn, destination):
     :return:
     """
 
-    assert isinstance(destination, tables.File)
-    with tables.open_file(raw_kwd_fn, 'r') as raw_kwd:
+    assert isinstance(destination, tb.File)
+    with tb.open_file(raw_kwd_fn, 'r') as raw_kwd:
         logging.info('Processing trial events.')
         make_trial_upload_events(raw_kwd, destination)
         logging.info('Processing run events.')
@@ -42,8 +42,8 @@ def make_trial_upload_events(raw_kwd, dest_file):
     :return:
     """
 
-    assert isinstance(raw_kwd, tables.File)
-    assert isinstance(dest_file, tables.File)
+    assert isinstance(raw_kwd, tb.File)
+    assert isinstance(dest_file, tb.File)
     grp = dest_file.create_group(u'/events',
                                  u'trials',
                                  title=u'Trial parameters uploaded to arduino from Voyeur.',
@@ -74,7 +74,7 @@ def make_trial_upload_events(raw_kwd, dest_file):
     sample_offsets.append(offset)  #append the last offset value to close the end of the session.
     grp._v_attrs['sample rate'] = fs
 
-    # make superset of all fields. This will have fields that are not contained in all trials tables, so we'll have to
+    # make superset of all fields. This will have fields that are not contained in all trials tb, so we'll have to
     # be careful for exemptions later on here.
     all_fields = []
     for fieldset in fieldsets:
@@ -99,7 +99,7 @@ def make_trial_upload_events(raw_kwd, dest_file):
                     table_desc[f_name] = trs.coldescrs[f_name].copy(itemsize=max_len, pos=i)
             else:
                 pass
-    table_desc['run'] = tables.IntCol(pos=i+1)
+    table_desc['run'] = tb.IntCol(pos=i+1)
     tbl = dest_file.create_table(where=grp,
                                  name=u'params_table',
                                  description=table_desc,
@@ -154,8 +154,8 @@ def make_run_events(raw_kwd, dest_file):
     :param dest_file:
     :return:
     """
-    assert isinstance(raw_kwd, tables.File)
-    assert isinstance(dest_file, tables.File)
+    assert isinstance(raw_kwd, tb.File)
+    assert isinstance(dest_file, tb.File)
     grp = dest_file.create_group(u'/events',
                                  u'runs',
                                  title=u'start of voyeur run recordings',
@@ -180,9 +180,9 @@ def make_run_events(raw_kwd, dest_file):
         for k in attrs._v_attrnamesuser:
             if not table_desc.has_key(k):
                 try:
-                    a = tables.Atom.from_dtype(np.dtype((attrs[k].dtype, attrs[k].shape)))
-                    table_desc[k] = tables.Col.from_atom(a)
-                    # table_desc[k] = tables.Col.from_dtype((attrs[k].dtype, attrs[k].shape))
+                    a = tb.Atom.from_dtype(np.dtype((attrs[k].dtype, attrs[k].shape)))
+                    table_desc[k] = tb.Col.from_atom(a)
+                    # table_desc[k] = tb.Col.from_dtype((attrs[k].dtype, attrs[k].shape))
                 except ValueError:  # string problems. string solutions
                     max_len = 1
                     for _a in attr_sets:
@@ -190,7 +190,7 @@ def make_run_events(raw_kwd, dest_file):
                         lv = len(v)
                         if lv > max_len:
                             max_len = lv
-                    table_desc[k] = tables.StringCol(itemsize=max_len)
+                    table_desc[k] = tb.StringCol(itemsize=max_len)
                 except AttributeError:  # handle python objects (ie dict/tuple) by saving as a pickled string.
                     max_len = 1
                     for _a in attr_sets:
@@ -200,7 +200,7 @@ def make_run_events(raw_kwd, dest_file):
                         lv = len(payload)
                         if lv > max_len:
                             max_len = lv
-                    table_desc[k] = tables.StringCol(itemsize=max_len)
+                    table_desc[k] = tb.StringCol(itemsize=max_len)
     tbl = dest_file.create_table(where=grp,
                                  name=u'params_table',
                                  description=table_desc,
@@ -227,10 +227,10 @@ def get_trial_params(trial_events, trial_params, time):
     Find the trial parameters that were uploaded immediately prior to a given time.
 
     :param trial_events: array of trial events (from /events/trials/events)
-    :param trial_params: tables.Table for trial params_table (/events/trials/params_table)
+    :param trial_params: tb.Table for trial params_table (/events/trials/params_table)
     :param time: numeric time (in samples).
-    :type trial_events: tables.Array
-    :type trial_params: tables.Table
+    :type trial_events: tb.Array
+    :type trial_params: tb.Table
     :return:
     """
 
@@ -291,8 +291,8 @@ class GenericEventHandler(object):
         # TO BE OVERWRITTEN! This defines the field names (from the voyeur table)
         # that will be written as the event's metadata.
 
-        assert isinstance(dest_file, tables.File)
-        assert isinstance(raw_kwd, tables.File)
+        assert isinstance(dest_file, tb.File)
+        assert isinstance(raw_kwd, tb.File)
         self.dest_file = dest_file
         self.raw_kwd = raw_kwd
 
@@ -330,7 +330,7 @@ class GenericEventHandler(object):
                 self.fs = a.get_attr('sample_rate_Hz')
             except AttributeError:
                 self.fs = 20833.
-        except tables.NoSuchNodeError:
+        except tb.NoSuchNodeError:
                 logging.warning(u'No {0:s} stream found for run {1:d} ({2:s})'.format(self.stream_name, rec, nd_st))
                 st = None
         return st
@@ -396,7 +396,7 @@ class GenericEventHandler(object):
         table_desc = dict()
         for i, f_name in enumerate(self.metadata_field_names):
             if f_name == 'voltage':  # we're going to record the voltage of the event (ie for laser), which we will measure from the stream, not take from the table, so we need to make a placeholder for it.
-                table_desc['voltage'] = tables.IntCol(pos=i)  # int32 should be ok, but this can be flexiblized later..
+                table_desc['voltage'] = tb.IntCol(pos=i)  # int32 should be ok, but this can be flexiblized later..
             elif f_name in trial_params.colnames:
                 try:
                     table_desc[f_name] = trial_params.coldescrs[f_name].copy(pos=i)
@@ -509,7 +509,7 @@ class FinalValveEventHandlerArduino(GenericEventHandler):
     stream_name = u'finalvalve'
 
     def __init__(self, raw_kwd, dest_file, *args, **kwargs):
-        assert isinstance(dest_file, tables.File)
+        assert isinstance(dest_file, tb.File)
         if self.check_no_stream(dest_file):
             logging.info('No stream found for {0:s}, creating events from Arduino record.'.format(self.stream_name))
             super(FinalValveEventHandlerArduino, self).__init__(raw_kwd, dest_file, *args, **kwargs)
@@ -528,7 +528,7 @@ class FinalValveEventHandlerArduino(GenericEventHandler):
         try:
             raw_kwd.get_node('/recordings/0/{0:s}'.format(self.stream_name))
             return False
-        except tables.NoSuchNodeError:
+        except tb.NoSuchNodeError:
             return True
 
     def build_stream(self):
