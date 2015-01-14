@@ -8,6 +8,7 @@ System to get clusters into ephys file.
 import tables as tb
 import time
 import os.path
+import logging
 
 
 def main(kwik_fn, destination):
@@ -17,7 +18,7 @@ def main(kwik_fn, destination):
     :param destination: tables.File object that will be the destination for the cluster data from the .kwik file.
     :return:
     """
-
+    logging.info('adding clusters')
     assert isinstance(destination, tb.File)
     dtg = time.strftime('D%Y%m%d_T%H%M%S')
     with tb.open_file(kwik_fn, 'r') as kwik:
@@ -77,5 +78,6 @@ def main(kwik_fn, destination):
                 carray.set_attr('shank', shank)
 
                 carray.flush()
+    logging.info('cluster addition complete.')
 
     return
