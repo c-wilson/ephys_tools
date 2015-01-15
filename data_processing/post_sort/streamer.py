@@ -15,7 +15,7 @@ parses and adds stream edata to overall h5 object.
 stream_defs = {'sniff': 16}
 
 
-def main(raw_kwd_fn, destination):
+def streamer(raw_kwd_fn, destination):
     logging.info('Adding streams')
     assert isinstance(destination, tb.File)
     with tb.open_file(raw_kwd_fn, 'r') as raw_kwd:

@@ -11,7 +11,7 @@ import os.path
 import logging
 
 
-def main(kwik_fn, destination):
+def clusterer(kwik_fn, destination):
     """
 
     :param kwik_fn:

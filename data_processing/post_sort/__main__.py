@@ -10,9 +10,9 @@ import argparse
 
 from ephys_tools.data_processing.pre_sort.utils.param_util import get_params
 import logging
-import eventer
-import clusterer
-import streamer
+from eventer import eventer
+from clusterer import clusterer
+from streamer import streamer
 import warnings
 
 warnings.simplefilter('ignore', tb.NaturalNameWarning)
@@ -78,14 +78,13 @@ def main(input_filename, overwrite=False, append = False):
                     logging.info(u'Existing file contains most recent kwik data, skipping {0:s}.'.format(file))
                 else:
                     logging.append(u'Updating kwik data for {0:s}'.format(file))
-                    clusterer.main(files['.kwik'], dest_file)
+                    clusterer(files['.kwik'], dest_file)
         elif (os.path.exists(file) and overwrite) or not os.path.exists(file):
             logging.info(u'Creating destination file: {0}'.format(file))
             with tb.open_file(file, 'w') as dest_file:
-                streamer.main(files['.raw.kwd'], dest_file)
-                eventer.main(files['.raw.kwd'], dest_file)
-                clusterer.main(files['.kwik'], dest_file)
-
+                streamer(files['.raw.kwd'], dest_file)
+                eventer(files['.raw.kwd'], dest_file)
+                clusterer(files['.kwik'], dest_file)
 
         else:
             raise Exception(u'Not sure how we got here (bug):'
@@ -105,31 +104,6 @@ def append(destination_file, files):
     :param files:
     :return:
     """
-
-
-
-
-
-
-
-
-
-
-
-def make_file(path, overwrite=False):
-    """
-    Basic function to make an HDF5 file to contain data.
-    :param path:
-    :param overwrite:
-    :return:
-    """
-    if os.path.exists(path) and not overwrite:
-        raise FileException('File already exists, please specify overwrite if you wish to overwrite existing file.')
-    file = tables.open_file(path, 'w')
-    file.create_group('/', 'events')
-    file.create_group('/', 'streams')
-    return file
-
 
 def make(filebase, refresh=True):
     pass

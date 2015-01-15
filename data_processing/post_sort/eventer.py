@@ -14,7 +14,7 @@ try:
 except ImportError:
     import pickle
 
-def main(raw_kwd_fn, destination):
+def eventer(raw_kwd_fn, destination):
     """
 
     :param raw_kwd_fn:
@@ -72,8 +72,8 @@ def make_trial_upload_events(raw_kwd, dest_file):
         sample_offsets.append(offset)
         offset += len(serial_st)
     sample_offsets.append(offset)  #append the last offset value to close the end of the session.
-    grp._v_attrs['sample rate'] = fs
-
+    grp._v_attrs['sample_rate_Hz'] = fs
+    dest_file.root.events._v_attrs['sample_rate_Hz'] = fs
     # make superset of all fields. This will have fields that are not contained in all trials tb, so we'll have to
     # be careful for exemptions later on here.
     all_fields = []
