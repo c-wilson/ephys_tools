@@ -43,7 +43,7 @@ def main(input_filename, overwrite=False, append = False):
     for fb in input_filebases:
         fbs = {}
         logging.debug(u'Checking for files with filebase {0:s}'.format(fb))
-        for ext in (u'.raw.kwd', u'.low.kwd', u'.kwik'):
+        for ext in (u'.raw.kwd', u'.kwik'):
             file = os.path.join(input_dir, fb) + ext
             fbs[ext] = file
             if not os.path.exists(file):
@@ -126,6 +126,7 @@ class FileException(Exception):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description='Run preprocessing for kk3.')
 
     # TODO:

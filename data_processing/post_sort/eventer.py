@@ -510,7 +510,7 @@ class FinalValveEventHandlerArduino(GenericEventHandler):
 
     def __init__(self, raw_kwd, dest_file, *args, **kwargs):
         assert isinstance(dest_file, tb.File)
-        if self.check_no_stream(dest_file):
+        if self.check_no_stream(raw_kwd):
             logging.info('No stream found for {0:s}, creating events from Arduino record.'.format(self.stream_name))
             super(FinalValveEventHandlerArduino, self).__init__(raw_kwd, dest_file, *args, **kwargs)
             self.ev_grp._f_setattr('Warning', 'Events processed using FinalValveEventHandlerArduino!')

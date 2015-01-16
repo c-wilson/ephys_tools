@@ -120,7 +120,7 @@ def add_lfp_stream(raw_kwd, dest_file, downsample_factor=16, *args, **kwargs):
         temp_sig = np.zeros((s, n_ch), dtype=np.int16)
         for ii, sig in enumerate(record):
             logging.info('processing LFP in rec {0}, ch {1}'.format(i,ii))
-            temp_sig[:, ii] = decimate(sig.read(), downsample_factor)
+            temp_sig[:, ii] = decimate(sig, downsample_factor)
         lfp.append(temp_sig)
     lfp.flush()
     dest_file.flush()
@@ -144,7 +144,7 @@ def decimate(x, decimation_factor=16):
     n = 50  # filter order.
 
     # using firwin because it gives a linear phase filter (delay for all phases is equal: no "delay distortion")
-    b = signal.firwin(n+1, 8. / q, window='hamming')
+    b = signal.firwin(n+1, 1. / q, window='hamming')
     a = 1.
 
     y = signal.lfilter(b, a, x)
