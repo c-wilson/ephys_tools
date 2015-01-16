@@ -6,6 +6,9 @@ import numpy as np
 from scipy.signal import firwin, filtfilt, find_peaks_cwt
 import matplotlib.pyplot as plt
 import numba
+import logging
+import argparse
+from utils.detect_peaks import detect_peaks
 
 
 def sniff(h5, overwrite=True, *args, **kwargs):
@@ -105,7 +108,7 @@ def find_inhalations_simple(sniff_array, *args, **kwargs):
     """
 
     assert(isinstance(sniff_array, tb.Array))
-    sniff = -sniff_array[:,0]
+    sniff = -sniff_array[:, 0]
     sniff -= np.mean(sniff)
     fs = sniff_array.get_attr('sample_rate_Hz')
     sniff = filt(sniff, fs, cutoff=120, n_taps=41)
@@ -115,19 +118,15 @@ def find_inhalations_simple(sniff_array, *args, **kwargs):
                              mph=top/10,
                              mpd=(0.1 * fs),  # min peak distance is 100 ms.
                              edge='rising')    
-    print (peaks_inh)
     peaks_exh = detect_peaks(-sniff,
                              mph=bottom/5,
                              mpd=(0.1 * fs),
                              edge='rising')
     sniff_logical = sniff > top/20
     edges = np.convolve([1, -1], sniff_logical, mode='same')
-    print (peaks_exh)
 
     #quick filter for extremely short sniffs:
-    
-    
-    
+
     edges_filt = np.zeros(edges.shape, dtype=np.int8)
     min_inh_width_ms = 25
     min_inh_width_samp = np.int(min_inh_width_ms/1000 * fs)
@@ -146,11 +145,11 @@ def find_inhalations_simple(sniff_array, *args, **kwargs):
             if (next_exh - i) <= min_inh_width_samp:
                 reject = True
                 reject_down = next_exh
-                print('rejection of inh at sample (width): {0}'.format(i))
+                logging.debug('rejection of inh at sample (width): {0}'.format(i))
             elif (first_pk - i) > (first_valley - i):
                 reject = True
                 reject_down = next_exh
-                print('rejection of inh at sample (peaks): {0}'.format(i))
+                logging.debug('rejection of inh at sample (peaks): {0}'.format(i))
             else:
                 pass
 
@@ -162,7 +161,7 @@ def find_inhalations_simple(sniff_array, *args, **kwargs):
             if i != reject_down:
                 edges_filt[i] = -1
             else:
-                print('rejection of exh at sample (peaks): {0}'.format(i))
+                logging.debug('rejection of exh at sample (peaks): {0}'.format(i))
 
     inh_onsets = np.where(edges_filt == 1)[0]
     inh_offsets = np.where(edges_filt == -1)[0]
@@ -209,3 +208,23 @@ def filt(x, fs, cutoff=120., n_taps=41):
 
     y = filtfilt(b, a, x, axis=0)
     return y
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    parser = argparse.ArgumentParser(description='Run sniff processing.')
+
+    # TODO:
+    parser.add_argument('input_filename',
+                        help='.prm or .kwik filename')
+    parser.add_argument('--debug', action='store_true', default=False,
+                        help='only run clustering on first few seconds of edata')
+    parser.add_argument('--append', action='store_true', default=False,
+                        help='append data to the destination file if kwik file is modified since destination file was created')
+    parser.add_argument('--overwrite', action='store_true', default=False,
+                       help='overwrite the destination file if it exists')
+    args = parser.parse_args()
+
+    with tb.open_file(args.input_filename, 'a') as fi:
+        logging.info('starting sniff processing')
+        sniff(fi)
+        logging.info('complete.')
