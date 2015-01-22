@@ -67,7 +67,26 @@ def make_trial_upload_events(raw_kwd, dest_file):
 
         n_events += len(serial_dict)
         serial_dicts.append(serial_dict)
-        trial_sets.append(rec.Voyeur_data.Trials)
+
+        # do some parity check to make sure that there are no repeated trial numbers and that the trial numbers found in
+        # the Voyeur file are also found in the serial stream.
+        v_trials = rec.Voyeur_data.Trials
+        v_trial_nums = v_trials[:]['trialNumber']
+        s_trial_nums = serial_dict.keys()
+        if len(v_trial_nums) != len(np.unique(v_trial_nums)):
+            # trial number are duplicated within the voyeur table, find which trials are duplicates and raise exemption.
+            t, n = np.unique(v_trial_nums, return_counts=True)
+            repeats = t[n > 1]
+            raise ValueError('Voyeur table has repeated trial numbers: {0}.'.format(repeats))
+        if len(s_trial_nums) != len(np.unique(s_trial_nums)):
+            t, n = np.unique(s_trial_nums, return_counts=True)
+            repeats = t[n > 1]
+            raise ValueError('Serial stream has repeated trial numbers: {0}.'.format(repeats))
+        for tn in v_trial_nums:
+            if tn not in s_trial_nums:
+                logging.error('Trial number {0} found in Voyeur data file but not in serial stream!'.format(tn))
+
+        trial_sets.append(v_trials)
         fieldsets.append(rec.Voyeur_data.Trials.colnames)
         sample_offsets.append(offset)
         offset += len(serial_st)
