@@ -8,14 +8,15 @@ import time
 import argparse
 import numpy as np
 import tables
-import \
-    spikedetekt2.core.script as klusta_entry  # this is important and may change with subsequent versions of the klustering suite!
+# import \
+#     spikedetekt2.core.script as klusta_entry  # this is important and may change with subsequent versions of the klustering suite!
 from utils import param_util
 import utils.probe_util as prb_utils
 import sys
 from subprocess import Popen
 import logging
-
+import warnings
+warnings.filterwarnings('ignore', category=tables.NaturalNameWarning)
 
 
 
@@ -103,9 +104,14 @@ class PreProcessRec(object):
             self.data_file.create_group('/', 'recordings')
             self.run_ephys_fns = []
             self.run_beh_fns = []
+            self.run_cut_last_samples=[]  # this is the sample at which to stop using the run (ie use each chan in the  run from [0:cut])
             for run in self.parameters['raw_data_files']:
                 self.run_ephys_fns.append(run[0])
                 self.run_beh_fns.append(run[1])
+                if len(run) > 2:
+                    self.run_cut_last_samples.append(run[2])
+                else:
+                    self.run_cut_last_samples.append(0)
             self.runs = []
             self.append_runs()
             self.data_file.close()
@@ -133,12 +139,18 @@ class PreProcessRec(object):
         """
         if isinstance(self.run_ephys_fns, str):
             self.run_ephys_fns = [self.run_ephys_fns]  # make into list
-        for i, (run_ephys_fn, run_beh_fn) in enumerate(zip(self.run_ephys_fns, self.run_beh_fns)):
+        for i, (run_ephys_fn, run_beh_fn, cut) in enumerate(zip(self.run_ephys_fns, self.run_beh_fns, self.run_cut_last_samples)):
             run_ephys_fn = os.path.join(self.path, run_ephys_fn)
             run_beh_fn = os.path.join(self.path, run_beh_fn)
             logging.info( '\tPreprocessing run ' + str(i))
             run_grp = self.data_file.create_group('/recordings', str(i))
-            self.runs.append(PreProcessRun(run_ephys_fn, run_beh_fn, run_grp, self.data_file, self.parameters, self.prb))
+            self.runs.append(PreProcessRun(run_ephys_fn,
+                                           run_beh_fn,
+                                           run_grp,
+                                           cut,
+                                           self.data_file,
+                                           self.parameters,
+                                           self.prb))
 
 
     def run_klusta(self, klusta_args, **kwargs):
@@ -187,12 +199,13 @@ class PreProcessRec(object):
 
 
 class PreProcessRun(object):
-    def __init__(self, run_bin_fn, run_beh_fn, run_grp, rec_h5_obj, rec_prms, prb):
+    def __init__(self, run_bin_fn, run_beh_fn, run_grp, cut_last_samples, rec_h5_obj, rec_prms, prb):
         """
 
         :param run_bin_fn:
         :param run_beh_fn:
         :param run_grp:
+        :param cut_last_samples: Cuts this many samples off of the bin file (per channel).
         :param rec_h5_obj:
         :param rec_prms:
         :param prb:
@@ -209,6 +222,7 @@ class PreProcessRun(object):
         self.channels, self.chan_idxes = calc_channels(self.sgl_meta, rec_prms)  # shape = (channels,)
         self.nchannels = len(self.channels)
         self.ephys_channels = calc_ephys_channels(prb)
+        self.cut_last_samples = cut_last_samples  # this is per channel (ie not samples in the file, but samples for each channel)
         nephys_channels = len(self.ephys_channels)
         self.rec_h5_obj = rec_h5_obj
         if rec_prms['nchannels'] != nephys_channels:  #nchannels in rec parameters file is only neural!
@@ -232,7 +246,8 @@ class PreProcessRun(object):
         """
 
         filesize = os.path.getsize(self.bin_fn)
-        expct_rows = filesize / self.nchannels / 2
+        total_to_read = filesize - (self.cut_last_samples*self.nchannels*2)  #stops read at the cut point.
+        expct_rows = total_to_read / self.nchannels / 2
         data = {}  # dictionary to hold all of the data array objects (neural and metadata streams).
         for k, v in self.chan_idxes.iteritems():
             data[k] = self.rec_h5_obj.create_earray(self.run_group,
@@ -243,23 +258,25 @@ class PreProcessRun(object):
                                                     expectedrows=expct_rows)
             data[k]._v_attrs['bin_filename'] = self.bin_fn
             data[k]._v_attrs['acquisition_system'] = self.prms['acquisition_system']
-            data[k]._v_attrs['sampling_rate_Hz'] = self.prms['sample_rate']
+            data[k]._v_attrs['sample_rate_Hz'] = self.prms['sample_rate']
 
         f = open(self.bin_fn, 'rb')
         ld_q = int(max_load) / int(self.nchannels)  # automatically floors this value. a ceil wouldn't be bad
         ld_iter = ld_q * self.nchannels  # calculate number of values to read in each iteration
         ld_count = 0
         logging.info('\t\tAdding raw run recording data to kwd...')
-        while ld_count < filesize:
+        while ld_count < total_to_read:
             arr = np.fromfile(f, np.int16, ld_iter)
             ld_count += ld_iter
+            if ld_count + ld_iter > total_to_read:  # stop reading at the total_to_read.
+                ld_iter = total_to_read - ld_count
             larr = arr.size / self.nchannels
             arr.shape = (larr, self.nchannels)
             for k, v in data.iteritems():
                 idx = self.chan_idxes[k]
                 v.append(arr[:, idx])
                 v.flush()
-            pc = float(ld_count)/float(filesize) * 100.
+            pc = float(ld_count)/float(total_to_read) * 100.
             if pc > 100.:
                 pc = 100.
             logging.info('\t\t\t... %0.1d %% complete' % pc)

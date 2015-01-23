@@ -8,13 +8,16 @@ experiment_name = 'c57b2s1'
 
 
 
-raw_data_files = {'a': [('a_01_data.bin', 'a_01_D2014_10_26T15_19_5_beh.h5')],
+raw_data_files = {'a': [('a_01_data.bin', 'a_01_D2014_10_26T15_19_5_beh.h5', 200000)],
                   'b': [('b_01_data.bin', 'b_01_D2014_10_26T16_51_22_beh.h5')]}
 
-                # {rec1: [(run1 ephys_data_fn, run1 voyeur h5_fn),
-                #        (runN ephys_data_fn, runN voyeur h5)_fn],
-                # recN: [(run1 ephys_data_fn, run1 voyeur h5_fn), ...],
-                # ... }
+"""
+                {rec1: [(run1 ephys_data_fn, run1 voyeur h5_fn, cut_last_N_samples),
+                       (runN ephys_data_fn, runN voyeur h5)_fn],
+                recN: [(run1 ephys_data_fn, run1 voyeur h5_fn), ...],
+                ... }
+"""
+
 
 prb_file = 'NN_buz64s.prb'
 
@@ -22,10 +25,9 @@ prb_file = 'NN_buz64s.prb'
 chan_config = {'neural': range(0, 64),  # this is required.
             'pl_trigger': 225,
             'starttrial': 227,
-            'software_serial_tx': 226,
             'finalvalve': 224,
             'serial_trial': 226,
-            'sniff': 192}
+            'make_sniff_events': 192}
 
 
 nchannels = len(chan_config['neural'])
@@ -74,8 +76,8 @@ detect_spikes = 'negative'
 
 
 save_raw = True
-save_high = True
-save_low = True
+save_high = False
+save_low = False
 
 # Connected component
 # -------------------
