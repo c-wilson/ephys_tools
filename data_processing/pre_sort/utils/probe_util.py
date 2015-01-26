@@ -50,7 +50,7 @@ def calc_channel_list(site_graph, chan_translation, bad_channels=[]):
         for chan in pair:
             if chan not in chan_list and chan not in bad_channels:
                 chan_list.append(chan)
-    chan_list.sort()  # sort in place.
+    # chan_list.sort()  # sort in place.
     return chan_list
 
 

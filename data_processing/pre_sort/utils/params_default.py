@@ -51,24 +51,24 @@ features_contiguous = True  # Whether to make the features array contiguous
 # ########################
 # KlustaKwik parameters #
 #########################
-MaskStarts = 100
-#MinClusters = 100 
-#MaxClusters = 110
-MaxPossibleClusters = 500
-FullStepEvery = 10
-MaxIter = 10000
-RandomSeed = 654
-Debug = 0
-SplitFirst = 20
-SplitEvery = 100
-PenaltyK = 0
-PenaltyKLogN = 1
-Subset = 1
-PriorPoint = 1
-SaveSorted = 0
-SaveCovarianceMeans = 0
-UseMaskedInitialConditions = 1
-AssignToFirstClosestMask = 1
-UseDistributional = 1
-
+kk_MaskStarts = 500
+#kk_MinClusters = 100
+#kk_MaxClusters = 110
+kk_MaxPossibleClusters = 500
+kk_FullStepEvery = 10
+kk_MaxIter = 10000
+kk_RandomSeed = 654
+kk_Debug = 0
+kk_SplitFirst = 20
+kk_SplitEvery = 40
+kk_PenaltyK = 1
+kk_PenaltyKLogN = 0
+kk_Subset = 1
+kk_PriorPoint = 1
+kk_SaveSorted = 0
+kk_SaveCovarianceMeans = 0
+kk_UseMaskedInitialConditions = 1
+kk_AssignToFirstClosestMask = 1
+kk_UseDistributional = 1
+kk_RamLimitGB = 120.
 
