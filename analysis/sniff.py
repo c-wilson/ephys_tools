@@ -11,7 +11,7 @@ import argparse
 from utils.detect_peaks import detect_peaks
 
 
-def sniff(h5, overwrite=True, *args, **kwargs):
+def make_sniff_events(h5, overwrite=True, *args, **kwargs):
     """
 
     :param h5: tables.File object.
@@ -22,13 +22,8 @@ def sniff(h5, overwrite=True, *args, **kwargs):
     try:
         sniff_stream = h5.root.streams.sniff
     except tb.NoSuchNodeError:
-        print('Warning, no sniff found.')
-
-    fs_stream = sniff_stream._v_attrs['sample_rate_Hz']
-    fs_events = events_group._v_attrs['sample_rate_Hz']
-    sniff_events_array = find_inhalations_simple(sniff_stream)
-    sniff_events_array *= (fs_events/fs_stream)
-    sniff_events_array = sniff_events_array.astype(np.int)
+        print('Warning, no sniff stream found.')
+        return
 
     try:
         sniff_events_group = h5.create_group('/events', 'sniff')
@@ -38,7 +33,13 @@ def sniff(h5, overwrite=True, *args, **kwargs):
             h5.flush()
             sniff_events_group = h5.create_group('/events', 'sniff')
         else:
-            raise e
+            raise SniffExistExemption
+
+    fs_stream = sniff_stream._v_attrs['sample_rate_Hz']
+    fs_events = events_group._v_attrs['sample_rate_Hz']
+    sniff_events_array = find_inhalations_simple(sniff_stream)
+    sniff_events_array *= (fs_events/fs_stream)
+    sniff_events_array = sniff_events_array.astype(np.int)
     sniff_events = h5.create_carray(sniff_events_group, 'inh_events', obj=sniff_events_array)
     sniff_stats = basic_sniff_stats(sniff_events_array, sniff_stream, h5, fs_stream, fs_events)
     return
@@ -52,7 +53,7 @@ def basic_sniff_stats(sniff_events_array, sniff_stream, h5, fs_stream, fs_events
     """
 
     ev_fs_to_stream = fs_events/fs_stream
-    assert ev_fs_to_stream % 1. < 1e-2, 'possible rounding error in sniff indexing'
+    assert ev_fs_to_stream % 1. < 1e-2, 'possible rounding error in make_sniff_events indexing'
     ev_fs_to_stream = np.int(np.round(ev_fs_to_stream))
 
     table_desc = {'inh_integral': tb.Float64Col(pos=0),
@@ -137,7 +138,10 @@ def find_inhalations_simple(sniff_array, *args, **kwargs):
         if edges[i] == 1:
             first_pk = (peaks_inh > i)[0]
             first_valley = (peaks_exh > i)[0]
-            for ii in xrange(i, i + 3000):
+            ex_range = i+3000  # look for an exhalation in the next 3000 samples
+            if ex_range > edges.size:  # unless there are less than 3000 samples in the recording remaining.
+                ex_range = edges.size
+            for ii in xrange(i, ex_range):
                 if edges[ii] == -1:
                     next_exh = ii
                     break
@@ -209,6 +213,10 @@ def filt(x, fs, cutoff=120., n_taps=41):
     y = filtfilt(b, a, x, axis=0)
     return y
 
+
+class SniffExistExemption(Exception):
+    pass
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description='Run sniff processing.')
@@ -226,5 +234,5 @@ if __name__ == '__main__':
 
     with tb.open_file(args.input_filename, 'a') as fi:
         logging.info('starting sniff processing')
-        sniff(fi)
+        make_sniff_events(fi)
         logging.info('complete.')
