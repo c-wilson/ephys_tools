@@ -16,20 +16,28 @@ from streamer import streamer
 import warnings
 
 warnings.simplefilter('ignore', tb.NaturalNameWarning)
+logging.basicConfig(level=logging.INFO)
 
 def main(input_filename, overwrite=False, append = False):
+    """
+
+    :param input_filename: KWIK or .prm file.
+    :param overwrite: overwrite destination file if it exists.
+    :param append: append changed clusters to existing file.
+    :return:
+    """
     ex = os.path.splitext(input_filename)[1]
     input_dir = os.path.split(input_filename)[0]
 
     if overwrite and append:
         raise ValueError(u'Post sorting can not be run with both --overwrite and --append flags')
 
-    if ex.lower == u'.prm':
+    if ex.lower() == u'.prm':
         prms = get_params(input_filename)
         if isinstance(prms[u'raw_data_files'], dict):
             input_filebases = [prms[u'experiment_name'] + u'_rec_' + x for x in prms[u'raw_data_files']]
             input_kwiks = [os.path.join(input_dir, x) + u'.kwik' for x in input_filebases]
-    elif ex.lower() == '.kwik':
+    elif ex.lower() == u'.kwik':
         #only a single kwik to deal with.
         # input_kwiks = [input_filename]
         t = os.path.split(input_filename)[1]
@@ -65,8 +73,9 @@ def main(input_filename, overwrite=False, append = False):
                 logging.error(
                     u'Destination file exists: {0:s} no overwrite or append parameters were passed aborting.'.format(
                         file))
-                raise FileException(u'Destination file %s already exists. Please use --overwrite or --append to '
-                                    u'reprocess or update file.')
+                if len(filenames) > 1:
+                    raise FileException(u'Destination file %s already exists. Please use --overwrite or --append to '
+                                        u'reprocess or update file.')
 
     # if things are ok, put this thing together.
     for files in filenames:
@@ -82,10 +91,9 @@ def main(input_filename, overwrite=False, append = False):
         elif (os.path.exists(file) and overwrite) or not os.path.exists(file):
             logging.info(u'Creating destination file: {0}'.format(file))
             with tb.open_file(file, 'w') as dest_file:
-                streamer(files['.raw.kwd'], dest_file)
-                eventer(files['.raw.kwd'], dest_file)
                 clusterer(files['.kwik'], dest_file)
-
+                eventer(files['.raw.kwd'], dest_file)
+                streamer(files['.raw.kwd'], dest_file)
         else:
             raise Exception(u'Not sure how we got here (bug):'
                             u'\n\tFile: {0}'
@@ -114,13 +122,6 @@ def update(filebase):
     pass
 
 
-
-
-
-
-
-
-
 class FileException(Exception):
     pass
 
@@ -141,8 +142,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args.input_filename, overwrite=args.overwrite, append=args.append)
-
-
-
-
-    main()

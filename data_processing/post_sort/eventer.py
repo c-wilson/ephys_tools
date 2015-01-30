@@ -57,7 +57,7 @@ def make_trial_upload_events(raw_kwd, dest_file):
 
     for r in xrange(raw_kwd.root.recordings._v_nchildren):
         rec = raw_kwd.get_node(u'/recordings/{0:d}'.format(r))
-        serial_st = rec.serial_trial
+        serial_st = rec.serial_trial[:rec.data.shape[0]]
         try:
             fs = serial_st.get_attr('sample_rate_Hz')
         except AttributeError:
@@ -85,7 +85,6 @@ def make_trial_upload_events(raw_kwd, dest_file):
         for tn in v_trial_nums:
             if tn not in s_trial_nums:
                 logging.error('Trial number {0} found in Voyeur data file but not in serial stream!'.format(tn))
-
         trial_sets.append(v_trials)
         fieldsets.append(rec.Voyeur_data.Trials.colnames)
         sample_offsets.append(offset)
@@ -187,7 +186,7 @@ def make_run_events(raw_kwd, dest_file):
         events.append(start)
         rec = raw_kwd.get_node(u'/recordings/{0:d}'.format(r))
         attr_sets.append(rec.Voyeur_data._v_attrs)
-        start += len(rec.serial_trial)
+        start += rec.data.shape[0]
         end_events.append(start)  # append the next start as the end of the current run.
     try:
         fs = rec.serial_trial.get_attr('sample_rate_Hz')
@@ -259,8 +258,9 @@ def get_trial_params(trial_events, trial_params, time):
         trial_idx = np.where(tr_starts <= time)[0][-1]
         # print trial_idx
         tr = trial_params[trial_idx]
-        assert tr_ends[trial_idx] > time, ('Strange, the time does not fall ',
+        assert tr_ends[trial_idx] > time, ('Strange, the time does not fall '
                                            'within the end of the trial, something is wrong.')
+
     except IndexError:
         logging.error('No trial starts before time = %i, cannot retrieve trial information for this event.' % time)
         tr = None
@@ -278,6 +278,10 @@ def write_metadata(self, metadata_list, metadata_table):
 class GenericEventHandler(object):
     metadata_field_names = ()
 
+    # -------------------------------
+    # TO BE OVERWRITTEN! This defines the field names (from the voyeur table) that will be written as the
+    # event's metadata.
+
     @property
     def stream_name(self):
         raise NotImplementedError('Event handler classes must define stream names to convert to events.')
@@ -285,6 +289,8 @@ class GenericEventHandler(object):
     @property
     def metadata_field_names(self):
         raise NotImplementedError('Event handler class must define metadata_field_names or must specify None.')
+
+    # -------------------------------
 
     def __init__(self, raw_kwd, dest_file, *args, **kwargs):
         """
@@ -305,10 +311,6 @@ class GenericEventHandler(object):
         :param kwargs:
         :return:
         """
-
-
-        # TO BE OVERWRITTEN! This defines the field names (from the voyeur table)
-        # that will be written as the event's metadata.
 
         assert isinstance(dest_file, tb.File)
         assert isinstance(raw_kwd, tb.File)
@@ -336,15 +338,21 @@ class GenericEventHandler(object):
         return
 
     def build_stream(self):
+        logging.info("getting stream {0}".format(self.stream_name))
         try:
             rec = 0
             nd_st = u'/recordings/{0:d}/{1:s}'.format(rec, self.stream_name)
             st_ex = self.raw_kwd.get_node(nd_st)
             st = np.array([], dtype=st_ex.dtype)
+
             for rec in xrange(self.raw_kwd.root.recordings._v_nchildren):
+                neural_data = u'/recordings/{0:d}/data'
+                data_len = neural_data.shape[0]
+                # we need to use the data length here because we might have cropped it,
+                # so we don't want arrays of different size.
                 nd_st = u'/recordings/{0:d}/{1:s}'.format(rec, self.stream_name)
                 a = self.raw_kwd.get_node(nd_st)
-                st = np.append(st, a.read())
+                st = np.append(st, a[:data_len])
             try:
                 self.fs = a.get_attr('sample_rate_Hz')
             except AttributeError:
@@ -534,7 +542,7 @@ class FinalValveEventHandlerArduino(GenericEventHandler):
             super(FinalValveEventHandlerArduino, self).__init__(raw_kwd, dest_file, *args, **kwargs)
             self.ev_grp._f_setattr('Warning', 'Events processed using FinalValveEventHandlerArduino!')
         else:
-            logging.info('Stream found for {0:s}, NOT creating events from Arduino record.')
+            logging.info('Stream found for {0:s}, NOT creating events from Arduino record.'.format(self.stream_name))
             return
 
     def check_no_stream(self, raw_kwd):
@@ -579,11 +587,14 @@ class FinalValveEventHandlerArduino(GenericEventHandler):
                 fv_on_diff_ms = t_fv_on_arduino - t_start_arduino  # diff in time between trial start and fv on IN MS.
                 fv_on_diff_samp = np.int(fs/1000. * fv_on_diff_ms)
                 fv_on_acq = t_start_acq + fv_on_diff_samp
-                fv_off_ms = tparam['fvdur'] + fv_on_diff_ms
+                fv_off_ms = tparam['fvdur']
                 fv_off_samp = np.int(fs/1000. * fv_off_ms)
                 fv_off_acq = fv_on_acq + fv_off_samp
-                up_events.append(fv_on_acq)
-                down_events.append(fv_off_acq)
+                # check that the calculated FV falls within the recording trial (in case of truncated trial).
+                # if it does, write to the up and down events lists.
+                if fv_off_acq <= tev[1]:
+                    up_events.append(fv_on_acq)
+                    down_events.append(fv_off_acq)
         down_events = np.array(down_events, dtype=np.int)
         up_events = np.array(up_events, dtype=np.int)
         events = np.array([up_events, down_events]).T

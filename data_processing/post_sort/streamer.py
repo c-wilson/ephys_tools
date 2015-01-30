@@ -10,6 +10,9 @@ import logging
 
 """
 parses and adds stream edata to overall h5 object.
+
+to add a stream to the system, add to the stream_defs dictionary:
+stream_defs = {'YOUR_STREAM_ARRAY_NAME': decimation factor)
 """
 
 stream_defs = {'sniff': 16}
@@ -47,9 +50,11 @@ def add_stream(stream_name, raw_kwd, dest_file, downsample_factor=16, *args, **k
     dec_stream = np.array([], dtype=np.int16)
     dec_stream = dec_stream[:, np.newaxis]
     for i in xrange(n_recs):
+        rec = raw_kwd.get_node('/recordings/{0:d}'.format(i))
         try:
             s_pointer = raw_kwd.get_node('/recordings/{0:d}/{1:s}'.format(i, stream_name))
-            s_mem = s_pointer.read()
+            data_len = rec.data.shape[0]  # in case data is truncated relative to the stream.
+            s_mem = s_pointer[:data_len]
             s_dec = decimate(s_mem)
             dec_stream = np.concatenate((dec_stream, s_dec))
 
