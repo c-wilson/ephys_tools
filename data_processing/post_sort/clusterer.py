@@ -72,15 +72,15 @@ def clusterer(kwik_fn, destination):
                     # get the spike times:
                     clu_mask = spike_clusters == cnum
                     clu_spikes = spike_times[clu_mask]
-                    carray = destination.create_carray(dgrp,
-                                                       u's{0:02d}_c{1:04d}'.format(shank, cnum),
-                                                       obj=clu_spikes)
-                    carray.set_attr('cluster_group_num', cgrp_num)
-                    carray.set_attr('cluster_group_name', cgrp_name)
-                    carray.set_attr('shank', shank)
-
-                    carray.flush()
-                    cluster_list.append(carray)
+                    if clu_spikes.size:  # if this is empty, don't add the cluster to the file.
+                        carray = destination.create_carray(dgrp,
+                                                           u's{0:02d}_c{1:04d}'.format(shank, cnum),
+                                                           obj=clu_spikes)
+                        carray.set_attr('cluster_group_num', cgrp_num)
+                        carray.set_attr('cluster_group_name', cgrp_name)
+                        carray.set_attr('shank', shank)
+                        carray.flush()
+                        cluster_list.append(carray)
 
         for cluster in cluster_list:
             assert isinstance(cluster, tb.CArray)

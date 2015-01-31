@@ -346,7 +346,7 @@ class GenericEventHandler(object):
             st = np.array([], dtype=st_ex.dtype)
 
             for rec in xrange(self.raw_kwd.root.recordings._v_nchildren):
-                neural_data = u'/recordings/{0:d}/data'
+                neural_data = self.raw_kwd.get_node(u'/recordings/{0:d}/data'.format(rec))
                 data_len = neural_data.shape[0]
                 # we need to use the data length here because we might have cropped it,
                 # so we don't want arrays of different size.
