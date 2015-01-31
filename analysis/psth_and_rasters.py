@@ -1,7 +1,6 @@
+from __future__ import division
 __author__ = 'chris'
 
-import numba
-import tables as tb
 import numpy as np
 
 
@@ -42,7 +41,8 @@ def get_rasters(h5, clu, start_sample_array, time_window_ms, convert_to_ms=False
 # @numba.autojit('i8(f8[:,:], f8, f8')
 def make_spike_array(raster_array, binsize, start_time, end_time):
     bin_edges = np.arange(start_time, end_time, binsize)  # will automatically truncate if time window is not divisible by binsize.
-    spike_array = np.zeros((len(bin_edges), len(raster_array)), dtype=np.int64)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    spike_array = np.zeros((len(bin_edges)-1, len(raster_array)), dtype=np.int64)
     # print bin_edges
     for i in xrange(len(raster_array)):
         raster = raster_array[i, :]
@@ -52,4 +52,4 @@ def make_spike_array(raster_array, binsize, start_time, end_time):
             with np.errstate(invalid='ignore'):
                 raster_l = (raster >= bin_start) * (raster < bin_end)
             spike_array[ii, i] = np.sum(raster_l)
-    return spike_array, bin_edges
+    return spike_array, bin_centers
