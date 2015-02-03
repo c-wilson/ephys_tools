@@ -1,3 +1,9 @@
+"""
+Site to SpikeGL mapping are by Chris on 20150203.
+
+whisper channel definition is from the NeuroNexus A64-OM32x32 Adaptor.
+"""
+
 __author__ = 'chris'
 
 chan_translation = {  # site number (NEURONEXUS) and sgl channel numbers (Chris mapped)
