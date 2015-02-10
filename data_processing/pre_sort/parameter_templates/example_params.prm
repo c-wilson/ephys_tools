@@ -27,7 +27,7 @@ chan_config = {'neural': range(0, 64),  # this is required.
             'starttrial': 227,
             'finalvalve': 224,
             'serial_trial': 226,
-            'make_sniff_events': 192}
+            'sniff': 192}
 
 
 nchannels = len(chan_config['neural'])
