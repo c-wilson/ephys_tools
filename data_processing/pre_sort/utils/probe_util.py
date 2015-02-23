@@ -8,7 +8,7 @@ import os
 
 # acquisition_system=''
 
-def remap_sites_to_channels(site_graph, chan_translation):
+def remap_sites_to_channels(site_graph, chan_translation, bad_sites=[]):
     """
     Translate the site number to the recording channel number. Uses ordered sites list and corresponding ordered sgl_chan list.
 
@@ -26,15 +26,34 @@ def remap_sites_to_channels(site_graph, chan_translation):
     else:
         trans = chan_translation[acquisition_system]
 
+    # remove bad sites from the graph by deleting adjacency pairs that contain the bad site. This does not explicitly
+    # create a new adjacency pair that skips the bad site, but it should be ok in most circumstances.
+
+    site_graph_no_bad = copy.deepcopy(site_graph)
+
+    for pair in site_graph:
+        remove = False
+        for bad_site in bad_sites:
+            if bad_site in pair:
+                remove = True
+        if remove:
+            site_graph_no_bad.remove(pair)
+
+    # for i in xrange(len(chan_graph)):
+    #     for bad_site in bad_sites:
+    #         if bad_site in chan_graph[i]:
+    #             del(chan_graph[i])
+    # do the translation.
     chan_graph = copy.deepcopy(site_graph)  #don't want to change original site graph object.
-    for i, pair in enumerate(site_graph):
+
+    for i, pair in enumerate(site_graph_no_bad):
         for ii, site in enumerate(pair):
             idx = chan_translation['sites'].index(site)
             chan_graph[i][ii] = trans[idx]
     return chan_graph
 
 
-def calc_channel_list(site_graph, chan_translation, bad_channels=[]):
+def calc_channel_list(site_graph, chan_translation, bad_sites=[]):
     """
     calculates the channel which a site was recorded on, and makes a 1d list of the unique channels in the map.
     Does not add channels enumerated in the bad channels parameter to the final channels list.
@@ -43,9 +62,19 @@ def calc_channel_list(site_graph, chan_translation, bad_channels=[]):
     :param bad_sites: list of channels
     :return: list of channels
     """
-    # TODO: remove bad channels from graph (klusta crashes when more channels in graph than in chan list).
+
+    if acquisition_system == '':
+        ct = copy.deepcopy(chan_translation['sites'])
+        # NOTE: assumes that site maps start with site 1, not with site 0!!!. Also that channels start at 0, not 1,
+        # which is a good assumption if you aren't using matlab.
+        trans = [x-1 for x in ct]
+    else:
+        trans = chan_translation[acquisition_system]
+
     chan_graph = remap_sites_to_channels(site_graph, chan_translation)
     chan_list = []
+    bad_channels = [trans[chan_translation['sites'].index(x)] for x in bad_sites]
+
     for pair in chan_graph:
         for chan in pair:
             if chan not in chan_list and chan not in bad_channels:
@@ -54,7 +83,7 @@ def calc_channel_list(site_graph, chan_translation, bad_channels=[]):
     return chan_list
 
 
-def make_geometry_by_channels(geo_by_site, chan_translation):
+def make_geometry_by_channels(geo_by_site, chan_translation, bad_sites=[]):
     """
 
     :param geo_by_site:
@@ -71,6 +100,12 @@ def make_geometry_by_channels(geo_by_site, chan_translation):
         trans = chan_translation[acquisition_system]
 
     sites = geo_by_site.keys()
+    # remove bad sites from the geometry:
+    for bs in bad_sites:
+        if bs in sites:
+            sites.remove(bs)
+
+    # translate
     geo_by_chan = {}
     for site in sites:
         idx = chan_translation['sites'].index(site)

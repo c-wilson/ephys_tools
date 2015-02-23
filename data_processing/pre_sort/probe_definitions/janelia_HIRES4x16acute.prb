@@ -20,6 +20,8 @@ chan_translation = {  # site number (Janelia) and sgl channel numbers (Chris map
                                                 58, 59, 60, 61, 62, 63, 32, 33, 34, 35, 36, 37, 38, 39, 55, 54, 53,
                                                 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40]}
 
+bad_sites = []  # add sites to this list to remove from graph, chan list, and geometry
+
 shank0sites = [[64, 49],
                [64, 63],
                [49, 63],
@@ -142,11 +144,11 @@ channel_groups = {
     0:
         {
             # List of channels to keep for spike detection.
-            'channels': calc_channel_list(shank0sites, chan_translation, bad_sites=[]),
+            'channels': calc_channel_list(shank0sites, chan_translation, bad_sites),
 
             # Adjacency graph. Dead channels will be automatically discarded
             # by considering the corresponding subgraph.
-            'graph': remap_sites_to_channels(shank0sites, chan_translation),
+            'graph': remap_sites_to_channels(shank0sites, chan_translation, bad_sites),
 
 
             # 2D positions of the channels, only for visualization purposes
@@ -167,10 +169,10 @@ channel_groups = {
                                                    63: (17, 130),
                                                    49: (-18, 140),
                                                    64: (19, 150)},
-                                                  chan_translation)},
+                                                  chan_translation, bad_sites)},
     1: {
-        'channels': calc_channel_list(shank1sites, chan_translation, bad_sites=[]),
-        'graph': remap_sites_to_channels(shank1sites, chan_translation),
+        'channels': calc_channel_list(shank1sites, chan_translation, bad_sites),
+        'graph': remap_sites_to_channels(shank1sites, chan_translation, bad_sites),
         'geometry': make_geometry_by_channels({41: (0, 0),
                                                37: (5, 10),
                                                33: (-6, 20),
@@ -187,10 +189,10 @@ channel_groups = {
                                                47: (17, 130),
                                                34: (-18, 140),
                                                48: (19, 150)},
-                                              chan_translation)},
+                                              chan_translation, bad_sites)},
     2: {
-        'channels': calc_channel_list(shank2sites, chan_translation, bad_sites=[]),
-        'graph': remap_sites_to_channels(shank2sites, chan_translation),
+        'channels': calc_channel_list(shank2sites, chan_translation, bad_sites),
+        'graph': remap_sites_to_channels(shank2sites, chan_translation, bad_sites),
         'geometry': make_geometry_by_channels({28: (0, 0),
                                                24: (5, 10),
                                                23: (-6, 20),
@@ -207,10 +209,10 @@ channel_groups = {
                                                27: (17, 130),
                                                17: (-18, 140),
                                                31: (19, 150)},
-                                              chan_translation)},
+                                              chan_translation, bad_sites)},
     3: {
-        'channels': calc_channel_list(shank3sites, chan_translation, bad_sites=[]),
-        'graph': remap_sites_to_channels(shank3sites, chan_translation),
+        'channels': calc_channel_list(shank3sites, chan_translation, bad_sites),
+        'graph': remap_sites_to_channels(shank3sites, chan_translation, bad_sites),
         'geometry': make_geometry_by_channels({8: (0, 0),
                                                9: (5, 10),
                                                7: (-6, 20),
@@ -227,7 +229,7 @@ channel_groups = {
                                                15: (17, 130),
                                                1: (-18, 140),
                                                16: (19, 150)},
-                                              chan_translation)},
+                                              chan_translation, bad_sites)},
     }
 
 
