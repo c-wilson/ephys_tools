@@ -142,7 +142,7 @@ channel_groups = {
     0:
         {
             # List of channels to keep for spike detection.
-            'channels': calc_channel_list(shank0sites, chan_translation, bad_channels=[]),
+            'channels': calc_channel_list(shank0sites, chan_translation, bad_sites=[]),
 
             # Adjacency graph. Dead channels will be automatically discarded
             # by considering the corresponding subgraph.
@@ -169,7 +169,7 @@ channel_groups = {
                                                    64: (19, 150)},
                                                   chan_translation)},
     1: {
-        'channels': calc_channel_list(shank1sites, chan_translation, bad_channels=[]),
+        'channels': calc_channel_list(shank1sites, chan_translation, bad_sites=[]),
         'graph': remap_sites_to_channels(shank1sites, chan_translation),
         'geometry': make_geometry_by_channels({41: (0, 0),
                                                37: (5, 10),
@@ -189,8 +189,8 @@ channel_groups = {
                                                48: (19, 150)},
                                               chan_translation)},
     2: {
-        'channels': calc_channel_list(shank2sites, chan_translation, bad_channels=[]),
-        'sites': remap_sites_to_channels(shank2sites, chan_translation),
+        'channels': calc_channel_list(shank2sites, chan_translation, bad_sites=[]),
+        'graph': remap_sites_to_channels(shank2sites, chan_translation),
         'geometry': make_geometry_by_channels({28: (0, 0),
                                                24: (5, 10),
                                                23: (-6, 20),
@@ -209,7 +209,7 @@ channel_groups = {
                                                31: (19, 150)},
                                               chan_translation)},
     3: {
-        'channels': calc_channel_list(shank3sites, chan_translation, bad_channels=[]),
+        'channels': calc_channel_list(shank3sites, chan_translation, bad_sites=[]),
         'graph': remap_sites_to_channels(shank3sites, chan_translation),
         'geometry': make_geometry_by_channels({8: (0, 0),
                                                9: (5, 10),
