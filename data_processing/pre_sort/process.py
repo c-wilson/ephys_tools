@@ -17,6 +17,7 @@ from subprocess import Popen
 import logging
 import warnings
 warnings.filterwarnings('ignore', category=tables.NaturalNameWarning)
+from scipy import signal
 
 
 
@@ -26,13 +27,19 @@ class PreProcessSess(object):
     """
 
 
-    def __init__(self, sess_prm_ffn, force_reprocess, klusta_args):
+    def __init__(self, sess_prm_ffn, force_reprocess=False, overwrite=False, runkk=True, runsd=True):
         """
 
         :param sess_prm_ffn: fullfilename string for session .prm file
         :param force_reprocess: forces recreation of KWD files if they already exist for a given rec (Not yet implemented)
+        :param overwrite: tell klustakwik to overwrite
+        :param runkk: run klustakwik
+        :param runsd: run spikedetect
         :return:
         """
+        logging.info('logg')
+
+        klusta_args = {'runkk': runkk, 'runsd': runsd, 'overwrite': overwrite}
         self.path = os.path.split(sess_prm_ffn)[0]
         # self.processed_path = os.path.join(self.path, '/processed')
         self.force_reprocess = force_reprocess
@@ -75,7 +82,7 @@ class PreProcessSess(object):
             except Exception as msg:
                 logging.exception('error processing rec %s:'%rec)
                 print 'error processing rec %s'%rec
-        logging.info('Session processing completed.')
+        logging.info('Session preprocessing completed.')
         return
 
 
@@ -98,7 +105,7 @@ class PreProcessRec(object):
         self.prb = prb_utils.load_probe(os.path.join(self.path, self.parameters['prb_file']),
                                         acq_system=self.parameters['acquisition_system'])
         prb_utils.write_probe(self.prb, os.path.join(self.path, self.parameters['prb_file']))
-        self.data_ffn = self.path + self.parameters['experiment_name'] + '.raw.kwd'
+        self.data_ffn = os.path.join(self.path, (self.parameters['experiment_name'] + '.raw.kwd'))
         if self.force_reprocess or not os.path.exists(self.data_ffn):
             self.data_file = tables.open_file(self.data_ffn, 'w')  # CURRENTLY OVERWRITES!!!
             self.data_file.create_group('/', 'recordings')
@@ -137,9 +144,11 @@ class PreProcessRec(object):
         this is the meat of the matter.
         :return:
         """
+        logging.info('hello')
         if isinstance(self.run_ephys_fns, str):
             self.run_ephys_fns = [self.run_ephys_fns]  # make into list
         for i, (run_ephys_fn, run_beh_fn, cut) in enumerate(zip(self.run_ephys_fns, self.run_beh_fns, self.run_cut_last_samples)):
+            logging.info(run_ephys_fn)
             run_ephys_fn = os.path.join(self.path, run_ephys_fn)
             run_beh_fn = os.path.join(self.path, run_beh_fn)
             logging.info( '\tPreprocessing run ' + str(i))
@@ -161,7 +170,7 @@ class PreProcessRec(object):
         """
 
         if not (klusta_args['runkk'] + klusta_args['runsd']):
-            loggind.info('Skipping klusta for %s.' %self.data_ffn)
+            logging.info('Skipping klusta for %s.' %self.data_ffn)
             return
 
         error_out_fn = '%s_klustalog.log'%self.data_ffn
@@ -173,7 +182,6 @@ class PreProcessRec(object):
 
         if klusta_args['overwrite']:
             cmd += ' --overwrite'
-
         logging.info('opening subprocess: %s' %cmd)
         with open(os.devnull, 'w') as devnull:
             self.klusta_instance = Popen(cmd,
@@ -195,6 +203,35 @@ class PreProcessRec(object):
                 #TODO: delete PL filtered data node from run groups
         else:
             logging.warning('No klusta instance initiated for %s' % self.data_ffn)
+
+    def complete_cleanup(self):
+        raw_path = os.path.join(self.path, 'Processed_Raw')
+        complete_path = os.path.join(self.path, 'Processed')
+        if not os.path.exists(raw_path):
+            os.mkdir(raw_path)
+        if not os.path.exists(complete_path):
+            os.mkdir(complete_path)
+
+        data_filename = os.path.split(self.data_ffn)[1]
+        root_filename = os.path.splitext(data_filename)[0]
+        root_ffn = os.path.join(self.path, root_filename)
+        root_dest_ffn = os.path.join(complete_path, root_filename)
+
+        exts = ('.kwik', '.kwx', '.high.kwd', '.low.kwd', '.raw.kwd')
+        for ext in exts:
+            src_ffn =  root_ffn + ext
+            if os.path.exists(src_ffn):
+                dest_ffn = root_dest_ffn + ext
+                os.rename(src_ffn, dest_ffn)
+
+        for f in self.run_ephys_fns:
+            pass
+
+        for f in self.run_beh_fns:
+            pass
+
+
+
 
 
 
@@ -236,6 +273,8 @@ class PreProcessRun(object):
             logging.warning('NO powerline trigger signal found, using raw data without filtering.')
             self.edata['neural'].rename('data')  # make the raw data into the data stream.
             self.data_plfilt = self.edata
+        self.data_plfilt = self.PCA_filter(rec_h5_obj, prb)
+
 
     def add_raw_ephys_data(self, max_load=1e9):
         """
@@ -244,12 +283,21 @@ class PreProcessRun(object):
         :param max_load: number of integers to load at a given time for RAM limitations (default uses 8 GB).
         :return:
         """
-
         filesize = os.path.getsize(self.bin_fn)
-        total_to_read = filesize - (self.cut_last_samples*self.nchannels*2)  #stops read at the cut point.
-        expct_rows = total_to_read / self.nchannels / 2
+        expct_rows = filesize / self.nchannels / 2
         data = {}  # dictionary to hold all of the data array objects (neural and metadata streams).
         for k, v in self.chan_idxes.iteritems():
+            if self.run_group.__contains__(k):  # TODO: add overwritability!!!
+                for k in self.chan_idxes.keys():
+                    try:
+                        data[k] = self.run_group._f_get_child(k)
+                        logging.info('Raw data for stream {0} exists for run'.format(k))
+                    except tables.NoSuchNodeError:
+                        logging.error('No data exists for {0}'.format)
+                        raise Exception('No data exists for {0}'.format)
+                logging.info('Data already exists, using existing data.')
+                return data
+
             data[k] = self.rec_h5_obj.create_earray(self.run_group,
                                                     name=k,
                                                     atom=tables.Int16Atom(),
@@ -258,25 +306,23 @@ class PreProcessRun(object):
                                                     expectedrows=expct_rows)
             data[k]._v_attrs['bin_filename'] = self.bin_fn
             data[k]._v_attrs['acquisition_system'] = self.prms['acquisition_system']
-            data[k]._v_attrs['sample_rate_Hz'] = self.prms['sample_rate']
+            data[k]._v_attrs['sampling_rate_Hz'] = self.prms['sample_rate']
 
         f = open(self.bin_fn, 'rb')
         ld_q = int(max_load) / int(self.nchannels)  # automatically floors this value. a ceil wouldn't be bad
         ld_iter = ld_q * self.nchannels  # calculate number of values to read in each iteration
         ld_count = 0
         logging.info('\t\tAdding raw run recording data to kwd...')
-        while ld_count < total_to_read:
+        while ld_count < filesize:
             arr = np.fromfile(f, np.int16, ld_iter)
             ld_count += ld_iter
-            if ld_count + ld_iter > total_to_read:  # stop reading at the total_to_read.
-                ld_iter = total_to_read - ld_count
             larr = arr.size / self.nchannels
             arr.shape = (larr, self.nchannels)
             for k, v in data.iteritems():
                 idx = self.chan_idxes[k]
                 v.append(arr[:, idx])
                 v.flush()
-            pc = float(ld_count)/float(total_to_read) * 100.
+            pc = float(ld_count)/float(filesize) * 100.
             if pc > 100.:
                 pc = 100.
             logging.info('\t\t\t... %0.1d %% complete' % pc)
@@ -310,13 +356,21 @@ class PreProcessRun(object):
         :return: pointer to H5 array.
         """
         data_raw = self.edata['neural']
+
+        if self.run_group.__contains__('data'):  # don't reprocess filtered data if it already exists...
+            return self.run_group._f_get_child('data')
+
         filtered_data_array = rec_h5_obj.create_earray(self.run_group, 'data',
                                                   atom=tables.Int16Atom(),
-                                                  shape=(data_raw.shape[0], 0),
+                                                  shape=(data_raw.shape[0] - self.cut_last_samples, 0),
                                                   title='pl trigger (60 Hz) filtered neural data',
                                                   expectedrows=data_raw.shape[1])
+        filtered_data_array.set_attr('sampling_rate_Hz', data_raw._v_attrs['sampling_rate_Hz'])
         logging.info('\t\tPL filtering neural channels. Loading pl_trigger.')
-        pl_trig_sig = self.edata['pl_trigger'].read()[:, 0]  # array is multidimensional, so we just want the first column
+        if self.cut_last_samples:
+            pl_trig_sig = self.edata['pl_trigger'][:-self.cut_last_samples, 0]
+        else:
+            pl_trig_sig = self.edata['pl_trigger'][:, 0]  # array is multidimensional, so we just want the first column
         threshold = np.mean(pl_trig_sig)
         pl_trig_log = pl_trig_sig > threshold
         pl_edge_detect = np.convolve([1, -1], pl_trig_log, mode='same')
@@ -328,7 +382,10 @@ class PreProcessRun(object):
         # Filter and save every channel in a loop. Since only one channel is loaded and processed at a time, this will
         # use only as much memory as loading a single channel of data at a time at the expense of speed.
         for ch_i in xrange(n_ch):
-            chan_sig = data_raw[:, ch_i]
+            if self.cut_last_samples:
+                chan_sig = data_raw[:-self.cut_last_samples, ch_i]
+            else:
+                chan_sig = data_raw[:, ch_i]
             logging.info('\t\t\tfiltering channel %i of %i...' % (ch_i, n_ch))
             sig_len = chan_sig.size
             chan_sig = chan_sig - chan_sig.mean()
@@ -343,9 +400,126 @@ class PreProcessRun(object):
                 l = end - st
                 chan_sig[st:end] -= pl_template[:l]
             filtered_data_array.append(chan_sig[:, np.newaxis])  # save processed once complete with every channel.
+            filtered_data_array.set_attr('cut_noise_end_samples', self.cut_last_samples)
             filtered_data_array.flush()
         return filtered_data_array
 
+    def PCA_filter(self, rec_h5_obj, probe):
+        """
+        Filtering based on
+        doi:10.1016/S0165-0270(01)00516-7
+        """
+
+        assert self.run_group.__contains__('data')
+        data = self.run_group.data
+        array_title = 'PCA_filtered_data'
+        if data.title == array_title:  # don't refilter if filtering is already complete...
+            return data
+        assert isinstance(rec_h5_obj, tables.File)
+        D_all_clean = rec_h5_obj.create_carray(self.run_group, '_data_PCA_filt', title=array_title,
+                                               shape=data.shape, atom=data.atom)
+        logging.info('Starting PCA filtering. Loading data matrix...')
+        D_all_raw = data.read()
+        # TODO: this load can be done by shank instead of entirely at once to save memory.
+        # -- filter and threshold parameters --
+        t_scalar = 5.  # stdeviations away from noise to call a spike.
+        pre_spike_samples=10  # num samples before threshold to replace with spike-free version
+        post_spike_samples= 10 # num samples after ^^^
+        rate = data._v_attrs['sampling_rate_Hz']
+        low = 500.
+        high = 9895.675
+        _b,_a = signal.butter(3, (low/(rate/2.), high/(rate/2.)), 'pass')
+        sh_cnt = 0
+        for shank in probe.values():
+            sh_cnt +=1
+            logging.info('PCA filtering {0}'.format(sh_cnt))
+            channels = shank['channels']
+        #     print channels
+            D = D_all_raw[:, channels]
+            D_clean = np.zeros(D.shape, dtype=D.dtype)
+            C = np.cov(D.T)
+            for i in xrange(len(channels)):
+                D_i = D[:,i]
+                D_i_clean = D[:, i].astype(np.float64)
+                noti = []
+                for ii in xrange(len(channels)):
+                    if ii != i:
+                        noti.append(ii)
+        #         print noti
+                D_noti = D[:,noti]
+                C_noti = C[noti,:][:,noti]
+        #         C_noti2 = np.cov(D[:,noti].T)
+        #         assert(np.all(C_noti == C_noti2))
+                a, v = np.linalg.eig(C_noti)
+                for i_pc in xrange(3):  # first 3 pcs
+                    pc = np.dot(D_noti, v[:,i_pc])
+                    b = np.dot(D_i, pc) / np.dot(pc, pc)
+                    pc *= b
+                    D_i_clean -= pc
+                D_clean[:,i] = D_i_clean.astype(D.dtype)
+
+            # find spikes, replace spike times with D_mod (spike free noise representation D_mod)
+            D_mod = D - D_clean
+            D_filt_clean_1 = signal.filtfilt(_b,_a, D_clean, axis = 0)  #filtered representation of cleaned data to find spikes
+            D_nospikes = D.copy()
+            for i in xrange(len(channels)):
+                sig = D_filt_clean_1[:,i]
+                median = np.median(np.abs(sig))
+                std = median / .6745
+                threshold = t_scalar * std
+                sig_L = sig < -threshold
+                edges = np.convolve([1, -1], sig_L, mode='same')
+                t_crossings = np.where(edges == 1)[0]
+                for cross in t_crossings:
+                    if cross == 0:
+                        continue
+                    elif cross < pre_spike_samples:
+                        st = 0
+                        end = cross+post_ss
+                    elif cross + post_spike_samples > len(sig) - 1:
+                        st = cross-pre_spike_samples
+                        end = len(sig)-1
+                    else:
+                        st = cross-pre_spike_samples
+                        end = cross+post_spike_samples
+                    D_nospikes[st:end, i] = D_mod[st:end,i]
+
+            # -- 2nd stage filtering.
+            # just reuse D_clean here, as it is not being used by the algorithm any more.
+
+            C = np.cov(D_nospikes.T)
+            for i in xrange(len(channels)):
+                D_i = D[:,i]
+                D_i_clean = D[:, i].astype(np.float64, copy=True)
+                D_i_nospikes = D_nospikes[:,i]
+                noti = []
+                for ii in xrange(len(channels)):
+                    if ii != i:
+                        noti.append(ii)
+                D_noti = D_nospikes[:,noti]
+                C_noti = C[noti,:][:,noti]
+                a, v = np.linalg.eig(C_noti)
+                for i_pc in xrange(3):  # first 3 pcs
+                    pc = np.dot(D_noti, v[:,i_pc])
+                    b = np.dot(D_i_nospikes, pc) / np.dot(pc, pc)
+                    pc *= b
+                    D_i_clean -= pc
+                D_clean[:,i] = D_i_clean.astype(D.dtype)
+
+            # put everything back into the a super D.
+            for i, ch in enumerate(channels):
+                # the channel order is the same as the row in D.
+                D_all_clean[:, ch] = D_clean[:, i]
+                D_all_clean.flush()
+        assert isinstance(data, tables.EArray)
+        logging.info('Renaming plfiltered data to "neural_PL_filtered"')
+        data.rename('neural_PL_filtered')
+        rec_h5_obj.flush()
+        logging.info('Renaming PCA filtered data to "data"')
+        D_all_clean.rename('data')
+        rec_h5_obj.flush()
+        logging.info('PCA filtering complete!')
+        return D_all_clean
 
 
 def calc_ephys_channels(prb):
@@ -482,13 +656,11 @@ def main():
         runsd = False
         runkk = False
 
-    klusta_args = {'runkk': runkk, 'runsd': runsd, 'overwrite': args.overwrite}
-
     prms = param_util.get_params(args.prm_filename)
     if type(prms['raw_data_files']) is dict:
-        pp = PreProcessSess(args.prm_filename, args.repreprocess, klusta_args)
+        pp = PreProcessSess(args.prm_filename, args.repreprocess, args.overwrite, runkk, runsd)
 
-    res = [x.wait_klusta() for x in pp.recs.values()]
+        res = [x.wait_klusta() for x in pp.recs.values()]
 
 
 
@@ -497,7 +669,8 @@ def main():
 
 if __name__ == "__main__":
     dtg = time.strftime('%Y%m%d_%H%M%S')
-    logging.basicConfig(filename='process_%s.log'%dtg, level=logging.INFO)
+    FORMAT = "%(asctime)-15s %(message)s"
+    logging.basicConfig(filename='process_%s.log'%dtg, level=logging.INFO, format=FORMAT)
 
     main()
 
