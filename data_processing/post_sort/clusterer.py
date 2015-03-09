@@ -67,7 +67,12 @@ def clusterer(kwik_fn, destination):
                 cname = cluster._v_name
                 cnum = int(cname)
                 cgrp_num = cluster._f_getattr('cluster_group')
-                cgrp_name = cluster_groups[str(int(cgrp_num))]
+                try:
+                    cgrp_name = cluster_groups[str(int(cgrp_num))]
+                except TypeError as e:
+                    print cgrp_num
+                    print cluster
+                    raise e
                 if cgrp_name.lower() != 'noise':  # discard noise clusters.
                     # get the spike times:
                     clu_mask = spike_clusters == cnum

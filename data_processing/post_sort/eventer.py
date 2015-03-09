@@ -59,7 +59,7 @@ def make_trial_upload_events(raw_kwd, dest_file):
         rec = raw_kwd.get_node(u'/recordings/{0:d}'.format(r))
         serial_st = rec.serial_trial[:rec.data.shape[0]]
         try:
-            fs = serial_st.get_attr('sample_rate_Hz')
+            fs = rec.serial_trial.get_attr('sample_rate_Hz')
         except AttributeError:
             fs = 20833.
             logging.warning(u'Warning, no sampling rate specified for serial trial number. Default is set to 20833 Hz.')

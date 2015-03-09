@@ -37,7 +37,6 @@ class PreProcessSess(object):
         :param runsd: run spikedetect
         :return:
         """
-        logging.info('logg')
 
         klusta_args = {'runkk': runkk, 'runsd': runsd, 'overwrite': overwrite}
         self.path = os.path.split(sess_prm_ffn)[0]
@@ -144,7 +143,6 @@ class PreProcessRec(object):
         this is the meat of the matter.
         :return:
         """
-        logging.info('hello')
         if isinstance(self.run_ephys_fns, str):
             self.run_ephys_fns = [self.run_ephys_fns]  # make into list
         for i, (run_ephys_fn, run_beh_fn, cut) in enumerate(zip(self.run_ephys_fns, self.run_beh_fns, self.run_cut_last_samples)):
@@ -475,7 +473,7 @@ class PreProcessRun(object):
                         continue
                     elif cross < pre_spike_samples:
                         st = 0
-                        end = cross+post_ss
+                        end = cross+post_spike_samples
                     elif cross + post_spike_samples > len(sig) - 1:
                         st = cross-pre_spike_samples
                         end = len(sig)-1
@@ -638,7 +636,7 @@ def main():
                         help='only run clustering on first few seconds of edata')
     parser.add_argument('--repreprocess', action='store_true', default=False,
                         help='overwrite existing raw.kwd file if they exist.')
-    parser.add_argument('--preprocess_only',action='store_true', default=False,
+    parser.add_argument('--preprocess-only',action='store_true', default=False,
                         help='only run preprocess routine, not klusta')
     parser.add_argument('--detect-only', action='store_true', default=False,
                         help='run only spikedetekt')

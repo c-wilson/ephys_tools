@@ -44,7 +44,7 @@ def remap_sites_to_channels(site_graph, chan_translation, bad_sites=[]):
     #         if bad_site in chan_graph[i]:
     #             del(chan_graph[i])
     # do the translation.
-    chan_graph = copy.deepcopy(site_graph)  #don't want to change original site graph object.
+    chan_graph = copy.deepcopy(site_graph_no_bad)  #don't want to change original site graph object.
 
     for i, pair in enumerate(site_graph_no_bad):
         for ii, site in enumerate(pair):
