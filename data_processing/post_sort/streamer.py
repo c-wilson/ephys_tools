@@ -100,7 +100,7 @@ def add_lfp_stream(raw_kwd, dest_file, downsample_factor=16, *args, **kwargs):
     records = []
     nrecs = raw_kwd.root.recordings._v_nchildren
     for i in xrange(nrecs):
-        record = raw_kwd.get_node('/recordings/{0:d}/data'.format(i))  # using PL filtered data.
+        record = raw_kwd.get_node('/recordings/{0:d}/neural_PL_filtered'.format(i))  # using PL filtered data.
         l += record.shape[0]
 
         records.append(record)
@@ -123,8 +123,9 @@ def add_lfp_stream(raw_kwd, dest_file, downsample_factor=16, *args, **kwargs):
         s = (record.shape[0] + downsample_factor - 1 - 25) // downsample_factor
         # this is hardcoded with first sample of 25, which corresponds to a decimation n = 50.
         temp_sig = np.zeros((s, n_ch), dtype=np.int16)
-        for ii, sig in enumerate(record):
-            logging.info('processing LFP in rec {0}, ch {1}'.format(i,ii))
+        for ii in xrange(n_ch):
+            sig = record[:, ii]
+            logging.info('processing LFP in rec {0}, ch {1}'.format(i, ii))
             temp_sig[:, ii] = decimate(sig, downsample_factor)
         lfp.append(temp_sig)
     lfp.flush()

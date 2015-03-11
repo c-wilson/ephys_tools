@@ -31,7 +31,7 @@ def main(input_filename, overwrite=False, append = False):
 
     if overwrite and append:
         raise ValueError(u'Post sorting can not be run with both --overwrite and --append flags')
-
+    print ex
     if ex.lower() == u'.prm':
         prms = get_params(input_filename)
         if isinstance(prms[u'raw_data_files'], dict):
@@ -81,12 +81,12 @@ def main(input_filename, overwrite=False, append = False):
     for files in filenames:
         file = files[u'destination']
         if os.path.exists(file) and append:
-            with tb.open_file(file) as dest_file:
+            with tb.open_file(file, 'a') as dest_file:
                 d_mod = dest_file.get_node_attr(u'/clusters', u'kwik_mod_time')
                 if d_mod >= os.path.getmtime(files['.kwik']):
                     logging.info(u'Existing file contains most recent kwik data, skipping {0:s}.'.format(file))
                 else:
-                    logging.append(u'Updating kwik data for {0:s}'.format(file))
+                    logging.info(u'Updating kwik data for {0:s}'.format(file))
                     clusterer(files['.kwik'], dest_file)
         elif (os.path.exists(file) and overwrite) or not os.path.exists(file):
             logging.info(u'Creating destination file: {0}'.format(file))
