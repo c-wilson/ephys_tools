@@ -38,9 +38,11 @@ shank5sites = [[60, 59], [59, 58], [58, 57], [57, 56], [56, 55],
                [56, 64], [64, 55]]
 extra_sites = [[36, 39], [39, 38], [38, 37]]
 
+bad_sites = []
+
 channel_groups = {
     # Shank index.
-    0: {'channels': calc_channel_list(shank0sites, chan_translation, bad_sites=[]),
+    0: {'channels': calc_channel_list(shank0sites, chan_translation, bad_sites=bad_sites),
         # List of channels to keep for spike detection.
 
         # Adjacency graph. Dead channels will be automatically discarded
@@ -62,7 +64,7 @@ channel_groups = {
                                               chan_translation)
     },
     1: {
-        'channels': calc_channel_list(shank1sites, chan_translation, bad_sites=[]),
+        'channels': calc_channel_list(shank1sites, chan_translation, bad_sites=bad_sites),
         'graph': remap_sites_to_channels(shank1sites, chan_translation),
         'geometry': make_geometry_by_channels({16: (0, 0),
                                                15: (5, 10),
@@ -77,7 +79,7 @@ channel_groups = {
                                               chan_translation)
     },
     2: {
-        'channels': calc_channel_list(shank2sites, chan_translation, bad_sites=[]),
+        'channels': calc_channel_list(shank2sites, chan_translation, bad_sites=bad_sites),
         'graph': remap_sites_to_channels(shank2sites, chan_translation),
         'geometry': make_geometry_by_channels({26: (0, 0),
                                                25: (5, 10),
@@ -92,7 +94,7 @@ channel_groups = {
                                               chan_translation)
     },
     3: {
-        'channels': calc_channel_list(shank3sites, chan_translation, bad_sites=[]),
+        'channels': calc_channel_list(shank3sites, chan_translation, bad_sites=bad_sites),
         'graph': remap_sites_to_channels(shank3sites, chan_translation),
         'geometry': make_geometry_by_channels({40: (0, 0),
                                                35: (5, 10),
@@ -107,7 +109,7 @@ channel_groups = {
                                               chan_translation)
     },
     4: {
-        'channels': calc_channel_list(shank4sites, chan_translation, bad_sites=[]),
+        'channels': calc_channel_list(shank4sites, chan_translation, bad_sites=bad_sites),
         'graph': remap_sites_to_channels(shank4sites, chan_translation),
         'geometry': make_geometry_by_channels({50: (0, 0),
                                                49: (5, 10),
@@ -122,7 +124,7 @@ channel_groups = {
                                               chan_translation)
     },
     5: {
-        'channels': calc_channel_list(shank5sites, chan_translation, bad_sites=[]),
+        'channels': calc_channel_list(shank5sites, chan_translation, bad_sites=bad_sites),
         'graph': remap_sites_to_channels(shank5sites, chan_translation),
         'geometry': make_geometry_by_channels({60: (0, 0),
                                                59: (5, 10),
@@ -136,7 +138,7 @@ channel_groups = {
                                                55: (13, 90)},
                                               chan_translation)
     },
-    6: {'channels': calc_channel_list(extra_sites, chan_translation, bad_sites=[]),
+    6: {'channels': calc_channel_list(extra_sites, chan_translation, bad_sites=bad_sites),
         'graph': remap_sites_to_channels(extra_sites, chan_translation),
         'geometry': make_geometry_by_channels({36: (0, 0),
                                                39: (0, 20),
