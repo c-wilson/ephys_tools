@@ -436,7 +436,6 @@ class PreProcessRun(object):
         #     print channels
             D = D_all_raw[:, channels]
             D_clean = np.zeros(D.shape, dtype=D.dtype)
-            C = np.cov(D.T)
             for i in xrange(len(channels)):
                 D_i = D[:,i]
                 D_i_clean = D[:, i].astype(np.float64)
@@ -444,14 +443,10 @@ class PreProcessRun(object):
                 for ii in xrange(len(channels)):
                     if ii != i:
                         noti.append(ii)
-        #         print noti
                 D_noti = D[:,noti]
-                C_noti = C[noti,:][:,noti]
-        #         C_noti2 = np.cov(D[:,noti].T)
-        #         assert(np.all(C_noti == C_noti2))
-                a, v = np.linalg.eig(C_noti)
+                u, _, _ = np.linalg.svd(D_noti, full_matrices=False)
                 for i_pc in xrange(3):  # first 3 pcs
-                    pc = np.dot(D_noti, v[:,i_pc])
+                    pc = u[:, i_pc]
                     b = np.dot(D_i, pc) / np.dot(pc, pc)
                     pc *= b
                     D_i_clean -= pc
@@ -486,7 +481,6 @@ class PreProcessRun(object):
             # -- 2nd stage filtering.
             # just reuse D_clean here, as it is not being used by the algorithm any more.
 
-            C = np.cov(D_nospikes.T)
             for i in xrange(len(channels)):
                 D_i = D[:,i]
                 D_i_clean = D[:, i].astype(np.float64, copy=True)
@@ -496,10 +490,9 @@ class PreProcessRun(object):
                     if ii != i:
                         noti.append(ii)
                 D_noti = D_nospikes[:,noti]
-                C_noti = C[noti,:][:,noti]
-                a, v = np.linalg.eig(C_noti)
+                u, _, _ = np.linalg.svd(D_noti, full_matrices=False)
                 for i_pc in xrange(3):  # first 3 pcs
-                    pc = np.dot(D_noti, v[:,i_pc])
+                    pc = u[:, i_pc]
                     b = np.dot(D_i_nospikes, pc) / np.dot(pc, pc)
                     pc *= b
                     D_i_clean -= pc
