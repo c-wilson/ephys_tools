@@ -133,9 +133,10 @@ class PreProcessRec(object):
         """
         self.parameters['raw_data_files'] = self.data_ffn
         prms_str = param_util.pydict_to_python(self.parameters)
-        f = open(self.prm_ffn, 'w')
-        f.write(prms_str)
-        f.close()
+        with open(self.prm_ffn, 'w') as f:
+            logging.info('updating param file with raw data file: {0}'.format(self.data_ffn))
+            f.write(prms_str)
+            f.close()
         return
 
     def append_runs(self):
