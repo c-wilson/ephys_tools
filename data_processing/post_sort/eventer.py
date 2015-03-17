@@ -317,7 +317,7 @@ class GenericEventHandler(object):
         self.dest_file = dest_file
         self.raw_kwd = raw_kwd
 
-        stream = self.build_stream()
+        stream = self.build_stream(self.stream_name)
         self.stream = stream
         if stream is None:
             logging.warning('No "{0:s}" array found, not processing events.'.format(self.stream_name))
@@ -337,11 +337,11 @@ class GenericEventHandler(object):
                 dest_file.flush()
         return
 
-    def build_stream(self):
-        logging.info("getting stream {0}".format(self.stream_name))
+    def build_stream(self, stream_name):
+        logging.info("getting stream {0}".format(stream_name))
         try:
             rec = 0
-            nd_st = u'/recordings/{0:d}/{1:s}'.format(rec, self.stream_name)
+            nd_st = u'/recordings/{0:d}/{1:s}'.format(rec, stream_name)
             st_ex = self.raw_kwd.get_node(nd_st)
             st = np.array([], dtype=st_ex.dtype)
 
@@ -350,7 +350,7 @@ class GenericEventHandler(object):
                 data_len = neural_data.shape[0]
                 # we need to use the data length here because we might have cropped it,
                 # so we don't want arrays of different size.
-                nd_st = u'/recordings/{0:d}/{1:s}'.format(rec, self.stream_name)
+                nd_st = u'/recordings/{0:d}/{1:s}'.format(rec, stream_name)
                 a = self.raw_kwd.get_node(nd_st)
                 st = np.append(st, a[:data_len])
             try:
@@ -462,7 +462,8 @@ class GenericEventHandler(object):
                 for field in self.metadata_field_names:
                     if field.lower() == 'voltage':
                         row[field] = self.read_stream_voltage(event[0])
-                    row[field] = tr[field]
+                    else:
+                        row[field] = tr[field]
             row.append()
         table.flush()
 
@@ -608,8 +609,94 @@ class LickEventHandler(GenericEventHandler):
 
 
 class LaserPulseEventHandler(GenericEventHandler):
-    def __init__(self, *args, **kwargs):
-        pass
+    metadata_field_names = ('amplitude_1',
+                            'amplitude_2',
+                            'pulseOffDur_1',
+                            'pulseOffDur_2',
+                            'pulseOnDur_1',
+                            'pulseOnDur_2',
+                            'pulseOnsetDelay_1',
+                            'pulseOnsetDelay_2',
+                            'laser_multi_sniff',
+                            'LaserIntensity_1',
+                            'LaserIntensity_2',
+                            'laserontime',
+                            'lasersnum',
+                            'voltage')
+    stream_name = u'laser'
+
+    def __init__(self, raw_kwd, dest_file, *args, **kwargs):
+        """
+        Handles event creation from a trial. This means that it will convert events within a stream (ie TTL edges) as
+        timestamps. With these timestamps, the class will bind metadata from a Voyeur H5 file to the events by matching
+        the time when the event happened with the trial that is running at that time.
+
+        To use for most purposes, inherit this class and overwrite the metadata_field_names tuple with the field names
+        that are relevant to your stream.
+
+        To record the voltage of the event (ie for an analog event like a laser pulse generator), add 'voltage' to the
+        metadata_field_names tuple. (Find event times should be updated with a lower threshold, too.)
+
+        :param raw_kwd:
+        :param kwik:
+        :param dest_file:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+
+        assert isinstance(dest_file, tb.File)
+        assert isinstance(raw_kwd, tb.File)
+        self.dest_file = dest_file
+        self.raw_kwd = raw_kwd
+
+        stream = self.build_stream(self.stream_name)
+        self.stream = stream
+        if stream is None:
+            logging.warning('No "{0:s}" array found, not processing events.'.format(self.stream_name))
+            return
+        self._num_events = 0  # to use for estimation of table size. updated by find_event_times.
+        self.events = self.find_event_times(stream)
+        if self.events is None:
+            return
+        else:
+            self.ev_grp = dest_file.create_group(u'/events', u'{0:s}'.format(self.stream_name), createparents=True)
+            self.ev_grp._v_attrs['sample_rate_Hz'] = self.fs
+
+            #  this is the only change to the GenericEventHandler init method. ------
+            self.check_saturation_events()
+            #  --------
+
+            self.ev_events = dest_file.create_carray(self.ev_grp, 'events', obj=self.events)
+            dest_file.flush()
+            if self.metadata_field_names is not None:
+                self.params_table = self.make_table()
+                self.populate_params()
+                dest_file.flush()
+        return
+
+    def check_saturation_events(self):
+        """
+        this gets rid of laser events where the sniff signal is saturated. This creates big problems.
+
+        :return:
+        """
+        sniff_stream = self.build_stream('sniff')
+
+        sn_max = np.max(sniff_stream)
+        ev_mask = np.zeros(self.events.shape[0], dtype=np.bool)
+
+        for i in xrange(len(self.events)):
+            event = self.events[i, :]
+            ev_st = event[0]
+            if sniff_stream[ev_st] < sn_max:
+                ev_mask[i] = True
+            else:
+                ev_mask[i] = False
+        self.events = self.events[ev_mask]
+        return
+
+
 
 class WaterEventHandler(GenericEventHandler):
     def __init__(self, *args, **kwargs):
