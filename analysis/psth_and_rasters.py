@@ -7,7 +7,7 @@ import numpy as np
 def get_rasters(h5, clu, start_sample_array, time_window_ms, convert_to_ms=False):
     """
     Return spikes within windows from starts to starts+time_window_ms
-    Spike times are returned in samples relative to start, not ms!!!
+    Spike times are returned in samples RELATIVE TO START!!!
 
     :param clu:
     :param starts:

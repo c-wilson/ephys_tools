@@ -35,10 +35,11 @@ class Recording(tb.File):
     plot_odor_psth_no_baseline = odor_analysis.plot_odor_psth_no_baseline
     plot_odor_psth_w_baseline = odor_analysis.plot_odor_psth_w_baseline
     plot_odor_rasters = odor_analysis.plot_odor_rasters
+    plot_odor_rasters_sniff = odor_analysis.plot_odor_rasters_sniff
 
     def __init__(self, filename, *args, **kwargs):
 
-        super(Recording, self).__init__(filename, mode='a', *args, **kwargs)  # open file in append mode.
+        super(Recording, self).__init__(filename, mode='r+', *args, **kwargs)  # open file in append mode.
         assert hasattr(self.root, 'clusters')
         assert hasattr(self.root, 'events')
         assert hasattr(self.root, 'streams')

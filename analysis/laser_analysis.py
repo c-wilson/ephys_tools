@@ -81,7 +81,6 @@ def find_laser_trains(h5, min_dist_ms=20, *args, **kwargs):
             n_pulses = 0
         else:
             raise Exception("This shouldn't happen!!")
-    print start_idxes
 
     if len(start_idxes) > len(end_idxes):  # if the last pulse was a "start", then it will have no end.
         end_idxes.append(start_idxes[-1])

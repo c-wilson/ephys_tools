@@ -20,7 +20,7 @@ def make_sniff_events(h5, overwrite=True, *args, **kwargs):
     assert isinstance(h5, tb.File)
     events_group = h5.root.events
     try:
-        sniff_stream = h5.root.streams.sniff
+        sniff_stream_tbarray = h5.root.streams.sniff
     except tb.NoSuchNodeError:
         print('Warning, no sniff stream found.')
         return
@@ -34,17 +34,18 @@ def make_sniff_events(h5, overwrite=True, *args, **kwargs):
             sniff_events_group = h5.create_group('/events', 'sniff')
         else:
             raise SniffExistExemption
-
-    fs_stream = sniff_stream._v_attrs['sample_rate_Hz']
+    logging.info('Creating sniff events.')
+    sniff = sniff_stream_tbarray[:, 0]
+    fs_stream = sniff_stream_tbarray._v_attrs['sample_rate_Hz']
     fs_events = events_group._v_attrs['sample_rate_Hz']
-    sniff_events_array = find_inhalations_simple(sniff_stream)
+    sniff_events_array = find_inhalations_simple(sniff, fs_stream)
     sniff_events_array *= (fs_events/fs_stream)
     sniff_events_array = sniff_events_array.astype(np.int)
     sniff_events = h5.create_carray(sniff_events_group, 'inh_events', obj=sniff_events_array)
-    sniff_stats = basic_sniff_stats(sniff_events_array, sniff_stream, h5, fs_stream, fs_events)
+    sniff_stats = basic_sniff_stats(sniff_events_array, sniff, h5, fs_stream, fs_events)
     return
 
-def basic_sniff_stats(sniff_events_array, sniff_stream, h5, fs_stream, fs_events):
+def basic_sniff_stats(sniff_events_array, sniff, h5, fs_stream, fs_events):
     """
 
     :param sniff_events: numpy array with inhalation onsets and offsets.
@@ -62,7 +63,6 @@ def basic_sniff_stats(sniff_events_array, sniff_stream, h5, fs_stream, fs_events
                   'sniff_length': tb.Float64Col(pos=3)}
 
     sn_tb = h5.create_table('/events/sniff', 'basic_analysis', table_desc, expectedrows=len(sniff_events_array))
-    sniff = -sniff_stream[:, 0]
 
     for i in xrange(len(sniff_events_array)):
         start = sniff_events_array[i, 0]
@@ -101,17 +101,14 @@ def calc_inh_integral(sniff, start, stop, ev_to_stream_factor):
 
 
 
-def find_inhalations_simple(sniff_array, *args, **kwargs):
+def find_inhalations_simple(sniff, fs, *args, **kwargs):
     """
 
     :param sniff_array:
     :return:
     """
 
-    assert(isinstance(sniff_array, tb.Array))
-    sniff = -sniff_array[:, 0]
     sniff -= np.mean(sniff)
-    fs = sniff_array.get_attr('sample_rate_Hz')
     sniff = filt(sniff, fs, cutoff=120, n_taps=41)
     top = np.percentile(sniff, 99)
     bottom = np.percentile(sniff, 1)
@@ -138,7 +135,7 @@ def find_inhalations_simple(sniff_array, *args, **kwargs):
         if edges[i] == 1:
             first_pk = (peaks_inh > i)[0]
             first_valley = (peaks_exh > i)[0]
-            ex_range = i+3000  # look for an exhalation in the next 3000 samples
+            ex_range = i+20000  # look for an exhalation in the next 3000 samples
             if ex_range > edges.size:  # unless there are less than 3000 samples in the recording remaining.
                 ex_range = edges.size
             for ii in xrange(i, ex_range):
