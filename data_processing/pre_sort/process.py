@@ -387,7 +387,7 @@ class PreProcessRun(object):
                 chan_sig = data_raw[:, ch_i]
             logging.info('\t\t\tfiltering channel %i of %i...' % (ch_i, n_ch))
             sig_len = chan_sig.size
-            chan_sig = chan_sig - chan_sig.mean()
+            chan_sig -= chan_sig.mean()
             for i, edge in enumerate(pl_edge_idx):
                 end = edge + pl_len
                 if end < sig_len:
