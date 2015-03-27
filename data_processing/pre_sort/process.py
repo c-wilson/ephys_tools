@@ -1,5 +1,6 @@
 #!/home/chris/anaconda/bin/python2.7
 # ^ this makes this file executable.
+from __future__ import division
 __author__ = 'chris'
 
 import os
@@ -308,7 +309,7 @@ class PreProcessRun(object):
             data[k]._v_attrs['sampling_rate_Hz'] = self.prms['sample_rate']
 
         f = open(self.bin_fn, 'rb')
-        ld_q = int(max_load) / int(self.nchannels)  # automatically floors this value. a ceil wouldn't be bad
+        ld_q = int(max_load) // int(self.nchannels)  # automatically floors this value. a ceil wouldn't be bad
         ld_iter = ld_q * self.nchannels  # calculate number of values to read in each iteration
         ld_count = 0
         logging.info('\t\tAdding raw run recording data to kwd...')
@@ -426,7 +427,7 @@ class PreProcessRun(object):
         post_spike_samples= 10 # num samples after ^^^
         rate = data._v_attrs['sampling_rate_Hz']
         low = 500.
-        high = 9895.675
+        high = 0.5 * rate * 0.95
         _b,_a = signal.butter(3, (low/(rate/2.), high/(rate/2.)), 'pass')
         sh_cnt = 0
         for shank in probe.values():
