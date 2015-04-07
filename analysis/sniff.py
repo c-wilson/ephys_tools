@@ -11,7 +11,7 @@ import argparse
 from utils.detect_peaks import detect_peaks
 
 
-def make_sniff_events(h5, overwrite=True, *args, **kwargs):
+def add_sniff_events(h5, overwrite=True, plot=False, *args, **kwargs):
     """
 
     :param h5: tables.File object.
@@ -43,6 +43,20 @@ def make_sniff_events(h5, overwrite=True, *args, **kwargs):
     sniff_events_array = sniff_events_array.astype(np.int)
     sniff_events = h5.create_carray(sniff_events_group, 'inh_events', obj=sniff_events_array)
     sniff_stats = basic_sniff_stats(sniff_events_array, sniff, h5, fs_stream, fs_events)
+
+    sniff_log = np.zeros(sniff.size, dtype=np.bool)
+    for ev in sniff_events:
+        ev2 = ev / 16
+        sniff_log[ev2[0]:ev2[1]] = True
+
+    m = np.max(sniff[:10000])
+    plt.plot(sniff[:10000])
+    plt.plot(sniff_log[:10000] * m)
+    # plt.plot(plt.xlim(), [sniff.mean()]*2)
+    plt.show()
+
+
+
     return
 
 def basic_sniff_stats(sniff_events_array, sniff, h5, fs_stream, fs_events):
@@ -54,7 +68,7 @@ def basic_sniff_stats(sniff_events_array, sniff, h5, fs_stream, fs_events):
     """
 
     ev_fs_to_stream = fs_events/fs_stream
-    assert ev_fs_to_stream % 1. < 1e-2, 'possible rounding error in make_sniff_events indexing'
+    assert ev_fs_to_stream % 1. < 1e-2, 'possible rounding error in add_sniff_events indexing'
     ev_fs_to_stream = np.int(np.round(ev_fs_to_stream))
 
     table_desc = {'inh_integral': tb.Float64Col(pos=0),
@@ -108,7 +122,7 @@ def find_inhalations_simple(sniff, fs, *args, **kwargs):
     :return:
     """
 
-    sniff -= np.mean(sniff)
+    sniff -= np.median(sniff)
     sniff = filt(sniff, fs, cutoff=120, n_taps=41)
     top = np.percentile(sniff, 99)
     bottom = np.percentile(sniff, 1)
@@ -231,5 +245,5 @@ if __name__ == '__main__':
 
     with tb.open_file(args.input_filename, 'a') as fi:
         logging.info('starting sniff processing')
-        make_sniff_events(fi)
+        add_sniff_events(fi)
         logging.info('complete.')
