@@ -9,6 +9,7 @@ import tables as tb
 import time
 import os.path
 import logging
+import numpy as np
 
 
 def clusterer(kwik_fn, destination):
@@ -21,6 +22,10 @@ def clusterer(kwik_fn, destination):
     logging.info('adding clusters')
     assert isinstance(destination, tb.File)
     dtg = time.strftime('D%Y%m%d_T%H%M%S')
+    kwik_base = os.path.splitext(kwik_fn)[0]
+    kwx_fn = kwik_base + '.kwx'
+
+
     with tb.open_file(kwik_fn, 'r') as kwik:
 
         try:
@@ -35,7 +40,7 @@ def clusterer(kwik_fn, destination):
 
         dgrp = destination.create_group('/', 'clusters')
         dgrp._f_setattr('node_created_time', dtg)
-        dgrp._f_setattr('kwik_mod_time', os.path.getmtime(kwik_fn))
+        dgrp._f_setattr('kwik_mod_time', 0.)  # we'll update this later when we find that everything goes as we plan.
         destination.flush()
 
         nshanks = kwik.root.channel_groups._v_nchildren
@@ -55,6 +60,14 @@ def clusterer(kwik_fn, destination):
             spike_times = sh_grp.spikes.time_samples.read()
             spike_recordings = sh_grp.spikes.recording.read()
             spike_clusters = sh_grp.spikes.clusters.main.read()
+
+            # load spike waveforms if the kwx is present.
+            if os.path.exists(kwx_fn):
+                with tb.open_file(kwx_fn, 'r') as kwx:
+                    kwx_grp = kwx.get_node('/channel_groups/%i' % shank)
+                    sh_waveforms = kwx_grp.waveforms_filtered.read()
+            else:
+                sh_waveforms=None
 
             # correct for offset based on run starts. It is silly that kwik format doesn't just report spike
             # times relative to record 0, but this corrects that.
@@ -87,11 +100,18 @@ def clusterer(kwik_fn, destination):
                         carray.flush()
                         cluster_list.append(carray)
 
+                        # add mean waveform to the cluster attributes:
+                        if sh_waveforms is not None:
+                            clu_waveforms = sh_waveforms[clu_mask, :, :]
+                            clu_mean_waveforms = np.mean(clu_waveforms, axis=0)
+                            assert isinstance(carray, tb.CArray)
+                            carray.set_attr('mean_waveforms', clu_mean_waveforms)
+
         for cluster in cluster_list:
             assert isinstance(cluster, tb.CArray)
             group_name = cluster._v_attrs['cluster_group_name']
             destination.move_node(cluster, '/clusters/{0}'.format(group_name), createparents=True)
-
+        dgrp._f_setattr('kwik_mod_time', os.path.getmtime(kwik_fn))  # this will be updated to show that everything is ok.
     logging.info('cluster addition complete.')
 
     return

@@ -684,15 +684,18 @@ class LaserPulseEventHandler(GenericEventHandler):
         sniff_stream = self.build_stream('sniff')
 
         sn_max = np.max(sniff_stream)
+        sat_threshold = np.int(sn_max * 0.99)  # if we're within 1% of the max, we'll call it saturated.
         ev_mask = np.zeros(self.events.shape[0], dtype=np.bool)
 
         for i in xrange(len(self.events)):
             event = self.events[i, :]
             ev_st = event[0]
-            if sniff_stream[ev_st] < sn_max:
+            if sniff_stream[ev_st] < sat_threshold:
                 ev_mask[i] = True
             else:
                 ev_mask[i] = False
+
+
         self.events = self.events[ev_mask]
         return
 
