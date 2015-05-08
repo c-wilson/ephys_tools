@@ -6,8 +6,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import logging
 from psth_and_rasters import get_rasters, make_spike_array
+from utils.h5_decorator import h5decorator
 
-
+@h5decorator
 def find_odor_events(h5, odor_name, odor_concentration=None, exact_odor_match=False, include_laser_trials=False,
                      only_laser_trials=False, *args, **kwargs):
     """
@@ -19,7 +20,7 @@ def find_odor_events(h5, odor_name, odor_concentration=None, exact_odor_match=Fa
     :param
     :return:
     """
-    assert isinstance(h5, tb.File)
+
     fv_events = h5.root.events.finalvalve.events.read()
     fv_params = h5.root.events.finalvalve.params_table.read()
     odor_matches = fv_params['odor'] == get_odor_name(h5, odor_name, not exact_odor_match)
@@ -59,6 +60,8 @@ def find_odor_events(h5, odor_name, odor_concentration=None, exact_odor_match=Fa
                 pass
     return odor_matches
 
+
+@h5decorator
 def get_odor_name(h5, odor, close_match=True):
     """
     Find close matches to given odor name within file parameters table, correcting for case and partial matches.
@@ -75,8 +78,10 @@ def get_odor_name(h5, odor, close_match=True):
     :param odor: string to be checked and corrected if possible.
     :return:
     """
+
     if not close_match:
         return odor
+
     odor_params = h5.root.events.finalvalve.params_table[:]['odor']
     if odor not in odor_params:
         matches = []
@@ -98,6 +103,7 @@ def get_odor_name(h5, odor, close_match=True):
     return odor
 
 
+@h5decorator
 def get_unique_odors(h5, concentration=None):
     """
     Returns all unique odor strings found in finalvalve events parameter table. Can be masked by concentration (ie to
@@ -117,6 +123,7 @@ def get_unique_odors(h5, concentration=None):
     return np.unique(params['odor'])
 
 
+@h5decorator
 def get_unique_concentrations(h5, odor=None, close_odor_match=True):
     """
     Returns all unique odor concentrations found in finalvalve events parameter table. Can be masked by odor (ie to find
@@ -140,7 +147,8 @@ def get_unique_concentrations(h5, odor=None, close_odor_match=True):
     return np.unique(params['odorconc'])
 
 
-def find_sniff_events(h5, fv_event):
+@h5decorator
+def find_sniff_events(h5, fv_event, *args, **kwargs):
     """
     Finds the first inhalation event within the final valve event.
 
@@ -158,7 +166,9 @@ def find_sniff_events(h5, fv_event):
         return None
 
 
-def get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, *args, **kwargs):
+@h5decorator
+def get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
+                     only_laser_trials=False, *args, **kwargs):
     """
 
     :param h5:
@@ -170,7 +180,8 @@ def get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=5
     :return:
     """
     pre_pad_samples = np.int(pre_pad_ms * h5.root.events._v_attrs['sample_rate_Hz'] / 1000.)
-    fv_events = find_odor_events(h5, odor, odor_conc, *args, **kwargs)
+    fv_events = find_odor_events(h5, odor, odor_conc, include_laser_trials=include_laser_trials,
+                                 only_laser_trials=only_laser_trials, *args, **kwargs)
     starts = []
     for i, ev in enumerate(fv_events):
         sn_events = find_sniff_events(h5, ev)
@@ -185,7 +196,10 @@ def get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=5
     rasters -= pre_pad_ms
     return rasters
 
-def get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500):
+
+@h5decorator
+def get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
+                           only_laser_trials=False, *args, **kwargs):
     """
 
     :param h5:
@@ -199,11 +213,12 @@ def get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pa
 
     fs = h5.root.events._v_attrs['sample_rate_Hz']
     pre_pad_samples = np.int(pre_pad_ms * fs / 1000.)
-    fv_events = find_odor_events(h5, odor, odor_conc)
+    fv_events = find_odor_events(h5, odor, odor_conc, include_laser_trials=include_laser_trials,
+                                 only_laser_trials=only_laser_trials)
     inh_starts = list()
     sniff_events_all_trials = list()
     for i, ev in enumerate(fv_events):
-        sn_events = find_sniff_events(h5, ev)
+        sn_events = find_sniff_events(h5, ev, *args, **kwargs)
         try:
             first_sn_event = sn_events[0]  # the first sniff after odor onset.
             first_inh = first_sn_event[0]  # this is the first inhalation after odor onset. THIS IS TIME 0!!!
@@ -226,9 +241,9 @@ def get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pa
     return rasters, sniff_events_all_trials
 
 
-
-
-def plot_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, *args, **kwargs):
+@h5decorator
+def plot_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
+                      only_laser_trials=False, *args, **kwargs):
     """
     Returns array of
 
@@ -238,19 +253,21 @@ def plot_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=
     :param odor_conc:
     :return:
     """
-
-    rasters = get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms, pre_pad_ms)
+    rasters = get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms, pre_pad_ms,
+                               include_laser_trials=include_laser_trials, only_laser_trials=only_laser_trials)
     n_events = len(rasters)
     rows = np.ones(rasters.shape)
     row_template = np.arange(n_events)
     rows *= row_template[:, np.newaxis]
-    plt.scatter(rasters, rows, marker='|', *args, **kwargs)
+    plt.scatter(rasters, rows, marker='|', *args)
     plt.ylim(-1, n_events)
 
     return rasters
 
 
-def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, *args, **kwargs):
+@h5decorator
+def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
+                      only_laser_trials=False, *args, **kwargs):
     """
     Returns psth for all trials in which odor and concentration are met. Raster time 0 is the start of the first
     inhalation following odor onset.
@@ -267,14 +284,14 @@ def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_p
     :param pre_pad_ms:
     :return:
     """
-    rasters, sniff_by_trial = get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms, pre_pad_ms)
+    rasters, sniff_by_trial = get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms, pre_pad_ms,
+                                                     include_laser_trials=include_laser_trials,
+                                                     only_laser_trials=only_laser_trials, *args, **kwargs)
     n_events = len(rasters)
     rows = np.ones(rasters.shape)
     row_template = np.arange(n_events)
     rows *= row_template[:, np.newaxis]
     plt.scatter(rasters, rows, marker='|', *args, **kwargs)
-
-
 
     for i, trial in enumerate(sniff_by_trial):
         for sniff in trial:
@@ -282,9 +299,10 @@ def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_p
                 sniff[1] = time_window_ms - pre_pad_ms
             plt.plot(sniff, [i]*2, 'g', linewidth=5, alpha=.2)
     plt.ylim(-1, n_events)
+    return rasters, sniff_by_trial
 
 
-
+@h5decorator
 def get_odor_psth(h5, clu, odor, odor_conc, bin_size, time_window_ms=1000, pre_pad_ms=0,
                   *args, **kwargs):
     """
@@ -303,6 +321,7 @@ def get_odor_psth(h5, clu, odor, odor_conc, bin_size, time_window_ms=1000, pre_p
     :param pre_pad_ms:
     :return:
     """
+
     rasters = get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=time_window_ms, pre_pad_ms=pre_pad_ms, *args, **kwargs)
     spike_array, time_array = make_spike_array(rasters, bin_size, -pre_pad_ms, time_window_ms-pre_pad_ms)
     psth = np.sum(spike_array, axis=1)
@@ -310,7 +329,9 @@ def get_odor_psth(h5, clu, odor, odor_conc, bin_size, time_window_ms=1000, pre_p
     psth_hz = (1000 / bin_size) * psth / n_trials
     return psth_hz, time_array, n_trials
 
-def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, include_laser_trials=False, time_window_ms=1000, pre_pad_ms=0):
+
+@h5decorator
+def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, n_sniffs=5, include_laser_trials=False, time_window_ms=1000, pre_pad_ms=0):
     """
     Gets the first inhalations before every finalvalve opening and averages them all to get a baseline psth.
 
@@ -321,7 +342,6 @@ def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, include_laser_trials=Fal
     :param pre_pad_ms:
     :return:
     """
-
     pre_pad_samples = np.int(pre_pad_ms * h5.root.events._v_attrs['sample_rate_Hz'] / 1000.)
     sniff_events = h5.root.events.sniff.inh_events
     sniff_starts = sniff_events[:, 0]
@@ -329,18 +349,53 @@ def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, include_laser_trials=Fal
     starts = []
     for fv_ev in fv_events:
         fv_start = fv_ev[0]
-        last_inh = sniff_starts[sniff_starts < fv_start][-1]
-        starts.append(last_inh)
+        for i_sn in xrange(1, n_sniffs + 1):
+            last_inh = sniff_starts[sniff_starts < fv_start][-i_sn]
+            starts.append(last_inh)
     starts = np.array(starts)
     rasters = get_rasters(h5, clu, starts - pre_pad_samples, time_window_ms, convert_to_ms=True)
     rasters -= pre_pad_ms
     spike_array, time_array = make_spike_array(rasters, bin_size, -pre_pad_ms, time_window_ms-pre_pad_ms)
     psth = np.sum(spike_array, axis=1)
     n_trials = len(starts)
-    psth_hz = (1000 / bin_size) * psth / n_trials
+    psth_hz = (1000 / bin_size) * psth / len(starts)
     return psth_hz, time_array, n_trials
 
 
+@h5decorator
+def get_pre_odor_baseline_psths(h5, clu, odor, bin_size, n_sniffs=5,
+                                include_laser_trials=False, time_window_ms=1000, pre_pad_ms=0):
+    """
+    Gets the first inhalations before every finalvalve opening and averages them all to get a baseline psth.
+
+    :param h5:
+    :param clu:
+    :param bin_size:
+    :param time_window_ms:
+    :param pre_pad_ms:
+    :return:
+    """
+    pre_pad_samples = np.int(pre_pad_ms * h5.root.events._v_attrs['sample_rate_Hz'] / 1000.)
+    sniff_events = h5.root.events.sniff.inh_events
+    sniff_starts = sniff_events[:, 0]
+    fv_events = find_odor_events(h5, odor, include_laser_trials=include_laser_trials)
+    starts = []
+    for fv_ev in fv_events:
+        fv_start = fv_ev[0]
+        for i_sn in xrange(1, n_sniffs + 1):
+            last_inh = sniff_starts[sniff_starts < fv_start][-i_sn]
+            starts.append(last_inh)
+    starts = np.array(starts)
+    rasters = get_rasters(h5, clu, starts - pre_pad_samples, time_window_ms, convert_to_ms=True)
+    rasters -= pre_pad_ms
+    spike_array, time_array = make_spike_array(rasters, bin_size, -pre_pad_ms, time_window_ms-pre_pad_ms)
+    # psths = np.sum(spike_array, axis=1)
+    n_trials = len(starts)
+    psths_hz = (1000 / bin_size) * spike_array
+    return psths_hz, time_array, n_trials
+
+
+@h5decorator
 def plot_odor_psth_no_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_trials=False, only_laser_trials=False,
                               time_window_ms=1000, pre_pad_ms=500, *args, **kwargs):
     """
@@ -364,6 +419,8 @@ def plot_odor_psth_no_baseline(h5, clu, odor, odor_conc, bin_size, include_laser
     plt.plot(time, psth, *args, **kwargs)
     return
 
+
+@h5decorator
 def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_trials=False, only_laser_trials=False,
                               time_window_ms=1000, pre_pad_ms=500, *args, **kwargs):
     """
@@ -388,8 +445,10 @@ def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_
                                               time_window_ms=time_window_ms,
                                               pre_pad_ms=pre_pad_ms)
     plt.plot(time, psth, *args, **kwargs)
-    base_psth, time, n_base_trials = get_pre_odor_baseline_psth(h5, clu, odor, bin_size, include_laser_trials,
-                                                                time_window_ms, pre_pad_ms)
+    base_psth, time, n_base_trials = get_pre_odor_baseline_psth(h5, clu, odor, bin_size,
+                                                                include_laser_trials=include_laser_trials,
+                                                                time_window_ms=time_window_ms,
+                                                                pre_pad_ms=pre_pad_ms)
 
 
 
