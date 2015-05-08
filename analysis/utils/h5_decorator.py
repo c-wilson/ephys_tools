@@ -16,4 +16,4 @@ class h5decorator(object):
             with tb.open_file(h5) as h5:
                 return self.f(h5, *args, **kwargs)
         else:
-            return self.f(*args, **kwargs)
+            return self.f(h5, *args, **kwargs)

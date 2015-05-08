@@ -22,7 +22,6 @@ def find_laser_events(h5, amplitude='', onset_delay=None, *args, **kwargs):
     :param kwargs:
     :return:
     """
-    assert isinstance(h5, Recording)
     laser_events = h5.root.events.laser.events.read()
     laser_params = h5.root.events.laser.params_table.read()
     matches = np.ones(laser_events.shape, dtype=np.bool)
@@ -63,7 +62,6 @@ def find_laser_trains(h5, min_dist_ms=20, onset_delay=None, n_pulses=-1, include
     :param kwargs:
     :return:
     """
-    assert isinstance(h5, Recording)
     laser_events = find_laser_events(h5, onset_delay=onset_delay, *args, **kwargs)  # this does not handle the case where laser
     fs = h5.root.events._v_attrs['sample_rate_Hz']
     min_dist = np.int(fs // 1000 * min_dist_ms)
