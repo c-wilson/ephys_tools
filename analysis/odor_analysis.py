@@ -243,7 +243,7 @@ def get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pa
 
 @h5decorator
 def plot_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
-                      only_laser_trials=False, *args, **kwargs):
+                      only_laser_trials=False, axis=None, *args, **kwargs):
     """
     Returns array of
 
@@ -259,15 +259,17 @@ def plot_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=
     rows = np.ones(rasters.shape)
     row_template = np.arange(n_events)
     rows *= row_template[:, np.newaxis]
-    plt.scatter(rasters, rows, marker='|', *args)
-    plt.ylim(-1, n_events)
+    if axis is None:
+        axis = plt.axes()
+    axis.scatter(rasters, rows, marker='|', *args, **kwargs)
+    axis.set_ylim(-1, n_events)
 
     return rasters
 
 
 @h5decorator
 def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
-                      only_laser_trials=False, *args, **kwargs):
+                      only_laser_trials=False, axis=None, *args, **kwargs):
     """
     Returns psth for all trials in which odor and concentration are met. Raster time 0 is the start of the first
     inhalation following odor onset.
@@ -291,14 +293,16 @@ def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_p
     rows = np.ones(rasters.shape)
     row_template = np.arange(n_events)
     rows *= row_template[:, np.newaxis]
-    plt.scatter(rasters, rows, marker='|', *args, **kwargs)
+    if axis is None:
+        axis = plt.axes()
+    axis.scatter(rasters, rows, marker='|', *args, **kwargs)
 
     for i, trial in enumerate(sniff_by_trial):
         for sniff in trial:
             if sniff[1] > time_window_ms-pre_pad_ms:
                 sniff[1] = time_window_ms - pre_pad_ms
-            plt.plot(sniff, [i]*2, 'g', linewidth=5, alpha=.2)
-    plt.ylim(-1, n_events)
+            axis.plot(sniff, [i]*2, 'g', linewidth=5, alpha=.2)
+    axis.set_ylim(-1, n_events)
     return rasters, sniff_by_trial
 
 
@@ -397,7 +401,7 @@ def get_pre_odor_baseline_psths(h5, clu, odor, bin_size, n_sniffs=5,
 
 @h5decorator
 def plot_odor_psth_no_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_trials=False, only_laser_trials=False,
-                              time_window_ms=1000, pre_pad_ms=500, *args, **kwargs):
+                              time_window_ms=1000, pre_pad_ms=500, axis=None, *args, **kwargs):
     """
 
     :param h5:
@@ -416,13 +420,15 @@ def plot_odor_psth_no_baseline(h5, clu, odor, odor_conc, bin_size, include_laser
                                   only_laser_trials=only_laser_trials,
                                   time_window_ms=time_window_ms,
                                   pre_pad_ms=pre_pad_ms)
-    plt.plot(time, psth, *args, **kwargs)
+    if axis is None:
+        axis = plt.axes()
+    axis.plot(time, psth, *args, **kwargs)
     return
 
 
 @h5decorator
 def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_trials=False, only_laser_trials=False,
-                              time_window_ms=1000, pre_pad_ms=500, *args, **kwargs):
+                              time_window_ms=1000, pre_pad_ms=500, axis=None, *args, **kwargs):
     """
 
 
@@ -444,7 +450,9 @@ def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_
                                               only_laser_trials=only_laser_trials,
                                               time_window_ms=time_window_ms,
                                               pre_pad_ms=pre_pad_ms)
-    plt.plot(time, psth, *args, **kwargs)
+    if axis is None:
+        axis = plt.axes()
+    axis.plot(time, psth, *args, **kwargs)
     base_psth, time, n_base_trials = get_pre_odor_baseline_psth(h5, clu, odor, bin_size,
                                                                 include_laser_trials=include_laser_trials,
                                                                 time_window_ms=time_window_ms,
@@ -453,13 +461,13 @@ def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_
 
 
     # base_psth_norm = base_psth * (n_odor_trials/n_base_trials)
-    plt.plot(time, base_psth, '--k')
-    plt.xlim([-pre_pad_ms, -pre_pad_ms+time_window_ms])
-    plt.ylim([0, plt.ylim()[1]])
-    plt.ylabel('Firing rate (Hz)')
-    plt.xlabel('t (ms)')
+    axis.plot(time, base_psth, '--k')
+    axis.set_xlim([-pre_pad_ms, -pre_pad_ms+time_window_ms])
+    axis.set_ylim([0, axis.get_ylim()[1]])
+    axis.set_ylabel('Firing rate (Hz)')
+    axis.set_xlabel('t (ms)')
 
-    plt.plot([0, 0], plt.ylim(), '-k')
+    axis.plot([0, 0], axis.get_ylim(), '-k')
 
     return
 
