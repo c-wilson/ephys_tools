@@ -10,7 +10,7 @@ from utils.h5_decorator import h5decorator
 
 @h5decorator
 def find_odor_events(h5, odor_name, odor_concentration=None, exact_odor_match=False, include_laser_trials=False,
-                     only_laser_trials=False, *args, **kwargs):
+                     only_laser_trials=False, skip_last_trials=0, *args, **kwargs):
     """
     Finds all event times in which match a specified odor name and concentration.
 
@@ -58,7 +58,8 @@ def find_odor_events(h5, odor_name, odor_concentration=None, exact_odor_match=Fa
                 raise e
             else:
                 pass
-    return odor_matches
+    end = len(odor_matches) - skip_last_trials
+    return odor_matches[:end]
 
 
 @h5decorator
@@ -167,8 +168,13 @@ def find_sniff_events(h5, fv_event, *args, **kwargs):
 
 
 @h5decorator
-def get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
-                     only_laser_trials=False, *args, **kwargs):
+def get_odor_rasters(h5, clu, odor, odor_conc,
+                     time_window_ms=1000,
+                     pre_pad_ms=500,
+                     include_laser_trials=False,
+                     only_laser_trials=False,
+                     skip_last_trials=0,
+                     *args, **kwargs):
     """
 
     :param h5:
@@ -180,8 +186,11 @@ def get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=5
     :return:
     """
     pre_pad_samples = np.int(pre_pad_ms * h5.root.events._v_attrs['sample_rate_Hz'] / 1000.)
-    fv_events = find_odor_events(h5, odor, odor_conc, include_laser_trials=include_laser_trials,
-                                 only_laser_trials=only_laser_trials, *args, **kwargs)
+    fv_events = find_odor_events(h5, odor, odor_conc,
+                                 include_laser_trials=include_laser_trials,
+                                 only_laser_trials=only_laser_trials,
+                                 skip_last_trials=skip_last_trials,
+                                 *args, **kwargs)
     starts = []
     for i, ev in enumerate(fv_events):
         sn_events = find_sniff_events(h5, ev)
@@ -242,8 +251,15 @@ def get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pa
 
 
 @h5decorator
-def plot_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
-                      only_laser_trials=False, axis=None, *args, **kwargs):
+def plot_odor_rasters(h5, clu, odor, odor_conc,
+                      time_window_ms=1000,
+                      pre_pad_ms=500,
+                      include_laser_trials=False,
+                      only_laser_trials=False,
+                      axis=None,
+                      skip_last_trials=0,
+                      quick_plot=True,
+                      *args, **kwargs):
     """
     Returns array of
 
@@ -254,22 +270,41 @@ def plot_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=
     :return:
     """
     rasters = get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms, pre_pad_ms,
-                               include_laser_trials=include_laser_trials, only_laser_trials=only_laser_trials)
+                               include_laser_trials=include_laser_trials, 
+                               only_laser_trials=only_laser_trials,
+                               skip_last_trials=skip_last_trials)
     n_events = len(rasters)
     rows = np.ones(rasters.shape)
-    row_template = np.arange(n_events)
+    row_template = np.arange(n_events) +1
     rows *= row_template[:, np.newaxis]
     if axis is None:
         axis = plt.axes()
-    axis.scatter(rasters, rows, marker='|', *args, **kwargs)
-    axis.set_ylim(-1, n_events)
+
+    if quick_plot:
+        axis.scatter(rasters, rows, marker='|', *args, **kwargs)
+        axis.set_ylim(0, n_events+1)
+    else:
+        for tr, tr_ras in enumerate(rasters):
+            axis.vlines(tr_ras, tr+.5, tr+1.5, *args, **kwargs)
+            axis.spines['top'].set_visible(False)
+            axis.spines['right'].set_visible(False)
+            axis.spines['left'].set_visible(False)
+            axis.xaxis.set_ticks_position('bottom')
+            axis.set_yticks([])
+
 
     return rasters
 
 
 @h5decorator
-def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_pad_ms=500, include_laser_trials=False,
-                      only_laser_trials=False, axis=None, *args, **kwargs):
+def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, 
+                            time_window_ms=1000, 
+                            pre_pad_ms=500, 
+                            include_laser_trials=False,
+                            only_laser_trials=False, 
+                            axis=None, 
+                            skip_last_trials=0,
+                            *args, **kwargs):
     """
     Returns psth for all trials in which odor and concentration are met. Raster time 0 is the start of the first
     inhalation following odor onset.
@@ -288,7 +323,9 @@ def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_p
     """
     rasters, sniff_by_trial = get_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms, pre_pad_ms,
                                                      include_laser_trials=include_laser_trials,
-                                                     only_laser_trials=only_laser_trials, *args, **kwargs)
+                                                     only_laser_trials=only_laser_trials, 
+                                                     skip_last_trials=skip_last_trials,
+                                                     *args, **kwargs)
     n_events = len(rasters)
     rows = np.ones(rasters.shape)
     row_template = np.arange(n_events)
@@ -307,7 +344,10 @@ def plot_odor_rasters_sniff(h5, clu, odor, odor_conc, time_window_ms=1000, pre_p
 
 
 @h5decorator
-def get_odor_psth(h5, clu, odor, odor_conc, bin_size, time_window_ms=1000, pre_pad_ms=0,
+def get_odor_psth(h5, clu, odor, odor_conc, bin_size,
+                  time_window_ms=1000,
+                  pre_pad_ms=0,
+                  skip_last_trials=0,
                   *args, **kwargs):
     """
     Returns psth for all trials in which odor and concentration are met. Raster time 0 is the start of the first
@@ -326,7 +366,11 @@ def get_odor_psth(h5, clu, odor, odor_conc, bin_size, time_window_ms=1000, pre_p
     :return:
     """
 
-    rasters = get_odor_rasters(h5, clu, odor, odor_conc, time_window_ms=time_window_ms, pre_pad_ms=pre_pad_ms, *args, **kwargs)
+    rasters = get_odor_rasters(h5, clu, odor, odor_conc,
+                               time_window_ms=time_window_ms,
+                               pre_pad_ms=pre_pad_ms,
+                               skip_last_trials=skip_last_trials,
+                               *args, **kwargs)
     spike_array, time_array = make_spike_array(rasters, bin_size, -pre_pad_ms, time_window_ms-pre_pad_ms)
     psth = np.sum(spike_array, axis=1)
     n_trials = spike_array.shape[1]
@@ -335,7 +379,11 @@ def get_odor_psth(h5, clu, odor, odor_conc, bin_size, time_window_ms=1000, pre_p
 
 
 @h5decorator
-def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, n_sniffs=5, include_laser_trials=False, time_window_ms=1000, pre_pad_ms=0):
+def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, n_sniffs=5,
+                               include_laser_trials=False,
+                               time_window_ms=1000,
+                               pre_pad_ms=0,
+                               skip_last_trials=0):
     """
     Gets the first inhalations before every finalvalve opening and averages them all to get a baseline psth.
 
@@ -349,7 +397,9 @@ def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, n_sniffs=5, include_lase
     pre_pad_samples = np.int(pre_pad_ms * h5.root.events._v_attrs['sample_rate_Hz'] / 1000.)
     sniff_events = h5.root.events.sniff.inh_events
     sniff_starts = sniff_events[:, 0]
-    fv_events = find_odor_events(h5, odor, include_laser_trials=include_laser_trials)
+    fv_events = find_odor_events(h5, odor,
+                                 include_laser_trials=include_laser_trials,
+                                 skip_last_trials=skip_last_trials)
     starts = []
     for fv_ev in fv_events:
         fv_start = fv_ev[0]
@@ -368,7 +418,10 @@ def get_pre_odor_baseline_psth(h5, clu, odor, bin_size, n_sniffs=5, include_lase
 
 @h5decorator
 def get_pre_odor_baseline_psths(h5, clu, odor, bin_size, n_sniffs=5,
-                                include_laser_trials=False, time_window_ms=1000, pre_pad_ms=0):
+                                include_laser_trials=False,
+                                time_window_ms=1000,
+                                pre_pad_ms=0,
+                                skip_last_trials=0):
     """
     Gets the first inhalations before every finalvalve opening and averages them all to get a baseline psth.
 
@@ -382,7 +435,9 @@ def get_pre_odor_baseline_psths(h5, clu, odor, bin_size, n_sniffs=5,
     pre_pad_samples = np.int(pre_pad_ms * h5.root.events._v_attrs['sample_rate_Hz'] / 1000.)
     sniff_events = h5.root.events.sniff.inh_events
     sniff_starts = sniff_events[:, 0]
-    fv_events = find_odor_events(h5, odor, include_laser_trials=include_laser_trials)
+    fv_events = find_odor_events(h5, odor,
+                                 include_laser_trials=include_laser_trials,
+                                 skip_last_trials=skip_last_trials)
     starts = []
     for fv_ev in fv_events:
         fv_start = fv_ev[0]
@@ -422,13 +477,20 @@ def plot_odor_psth_no_baseline(h5, clu, odor, odor_conc, bin_size, include_laser
                                   pre_pad_ms=pre_pad_ms)
     if axis is None:
         axis = plt.axes()
+
     axis.plot(time, psth, *args, **kwargs)
     return
 
 
 @h5decorator
-def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_trials=False, only_laser_trials=False,
-                              time_window_ms=1000, pre_pad_ms=500, axis=None, *args, **kwargs):
+def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size,
+                              include_laser_trials=False,
+                              only_laser_trials=False,
+                              time_window_ms=1000,
+                              pre_pad_ms=500,
+                              axis=None,
+                              skip_last_trials=0,
+                              *args, **kwargs):
     """
 
 
@@ -449,23 +511,28 @@ def plot_odor_psth_w_baseline(h5, clu, odor, odor_conc, bin_size, include_laser_
                                               include_laser_trials=include_laser_trials,
                                               only_laser_trials=only_laser_trials,
                                               time_window_ms=time_window_ms,
-                                              pre_pad_ms=pre_pad_ms)
-    if axis is None:
-        axis = plt.axes()
-    axis.plot(time, psth, *args, **kwargs)
+                                              pre_pad_ms=pre_pad_ms,
+                                              skip_last_trials=skip_last_trials)
+
     base_psth, time, n_base_trials = get_pre_odor_baseline_psth(h5, clu, odor, bin_size,
                                                                 include_laser_trials=include_laser_trials,
                                                                 time_window_ms=time_window_ms,
-                                                                pre_pad_ms=pre_pad_ms)
-
-
+                                                                pre_pad_ms=pre_pad_ms,
+                                                                skip_last_trials=skip_last_trials)
 
     # base_psth_norm = base_psth * (n_odor_trials/n_base_trials)
+    if axis is None:
+        axis = plt.axes()
+    axis.plot(time, psth, *args, **kwargs)
     axis.plot(time, base_psth, '--k')
     axis.set_xlim([-pre_pad_ms, -pre_pad_ms+time_window_ms])
     axis.set_ylim([0, axis.get_ylim()[1]])
     axis.set_ylabel('Firing rate (Hz)')
     axis.set_xlabel('t (ms)')
+    axis.spines['top'].set_visible(False)
+    axis.spines['right'].set_visible(False)
+    axis.xaxis.set_ticks_position('bottom')
+    axis.yaxis.set_ticks_position('left')
 
     axis.plot([0, 0], axis.get_ylim(), '-k')
 
