@@ -3,9 +3,8 @@ __author__ = 'chris'
 
 
 import tables as tb
-import numpy as np
 import odor_analysis
-from sniff import make_sniff_events, SniffExistExemption
+from sniff import add_sniff_events, SniffExistExemption
 
 
 class Recording(tb.File):
@@ -16,7 +15,7 @@ class Recording(tb.File):
 
 
     # ----  DECLARE CLASS FUNCTIONS. -----
-    make_sniff_events = make_sniff_events
+    add_sniff_events = add_sniff_events
 
     # ---- event finders
     find_odor_events = odor_analysis.find_odor_events
@@ -44,13 +43,47 @@ class Recording(tb.File):
         assert hasattr(self.root, 'events')
         assert hasattr(self.root, 'streams')
         try:
-            make_sniff_events(self, overwrite=False)
+            add_sniff_events(self, overwrite=False)
         except SniffExistExemption:  # if sniff events already exists, don't worry about it!
             pass
 
         return
 
-# TODO: make recordings class.
+    def get_stream(self, stream, start, end, timebase='event'):
+        """
+        This returns a stream in the event timebase (ie. for plotting).
+
+        :param stream: a the stream that want to work with. This can be a streamname or a stream node.
+        :param start: the start sample that you want returned. This is in the event timebase.
+        :param end: the end sample that you want returned. This is in the event timebase
+
+        :returns: stream[start:end]
+        """
+
+        if isinstance(stream, str):
+            stream = self.get_node('/streams/', stream)
+
+        ev_timebase = self.root.events._v_attrs['sample_rate_Hz']
+        st_timebase = stream._v_attrs['sample_rate_Hz']
+        conversion_factor = ev_timebase / st_timebase
+
+        start_streambase = start / conversion_factor
+        end_streambase = end / conversion_factor
+
+        return stream[start_streambase:end_streambase]
+
+    def sample_to_ms(self, samples):
+        """
+        Convert sample time value(s) to millisecond timebase.
+
+        :param samples: numeric (array or scalar)
+        """
+
+        sample_rate = self.root.events._v_attrs['sample_rate_Hz']
+        ms = samples/sample_rate * 1000
+        return ms
+
+
 class Recordings(list):
     """
     Container for multiple recordings. Functions here override the original functions to work on the whole list of
