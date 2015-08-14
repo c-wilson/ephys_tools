@@ -4,6 +4,8 @@ Module combines post-sorted data from kwik and kwd sources to make a cohesive ep
 
 """
 
+# TODO: need to propagate root metadata from the behavior file to the h5 file!!!
+
 import tables as tb
 import os
 import argparse
@@ -18,7 +20,7 @@ import warnings
 warnings.simplefilter('ignore', tb.NaturalNameWarning)
 logging.basicConfig(level=logging.INFO)
 
-def main(input_filename, overwrite=False, append = False):
+def main(input_filename, overwrite=False, append=False):
     """
 
     :param input_filename: KWIK or .prm file.
@@ -31,7 +33,6 @@ def main(input_filename, overwrite=False, append = False):
 
     if overwrite and append:
         raise ValueError(u'Post sorting can not be run with both --overwrite and --append flags')
-    print ex
     if ex.lower() == u'.prm':
         prms = get_params(input_filename)
         if isinstance(prms[u'raw_data_files'], dict):
@@ -84,7 +85,7 @@ def main(input_filename, overwrite=False, append = False):
             with tb.open_file(file, 'a') as dest_file:
                 d_mod = dest_file.get_node_attr(u'/clusters', u'kwik_mod_time')
                 if d_mod >= os.path.getmtime(files['.kwik']):
-                    logging.info(u'Existing file contains most recent kwik data, skipping {0:s}.'.format(file))
+                    logging.info(u'Existing file contains most recent kwik data, skipping..'.format(file))
                 else:
                     logging.info(u'Updating kwik data for {0:s}'.format(file))
                     clusterer(files['.kwik'], dest_file)
@@ -95,14 +96,11 @@ def main(input_filename, overwrite=False, append = False):
                 eventer(files['.raw.kwd'], dest_file)
                 streamer(files['.raw.kwd'], dest_file)
         else:
-            raise Exception(u'Not sure how we got here (bug):'
+            raise Exception(u'File already exists and no overwrite parameter was provided:'
                             u'\n\tFile: {0}'
                             u'\n\tfile exists = {1}'
                             u'\n\tappend = {2}'
                             u'\n\toverwrite = {3}.'.format(file, os.path.exists(file), append, overwrite))
-            # handle making a new fle
-
-
 
 
 def append(destination_file, files):

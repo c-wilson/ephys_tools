@@ -20,10 +20,11 @@ def remap_sites_to_channels(site_graph, chan_translation, bad_sites=[]):
 
     # make translation for acquisition system (should be defined as global).
     if acquisition_system == '':
-        ct = copy.deepcopy(chan_translation['sites'])
+        pass
+        # ct = copy.deepcopy(chan_translation['sites'])
         # NOTE: assumes that site maps start with site 1, not with site 0!!!. Also that channels start at 0, not 1,
         # which is a good assumption if you aren't using matlab.
-        trans = [x-1 for x in ct]
+        # trans = [x-1 for x in ct]
     else:
         trans = chan_translation[acquisition_system]
 
@@ -65,10 +66,11 @@ def calc_channel_list(site_graph, chan_translation, bad_sites=[]):
     """
 
     if acquisition_system == '':
-        ct = copy.deepcopy(chan_translation['sites'])
+        pass
+        # ct = copy.deepcopy(chan_translation['sites'])
         # NOTE: assumes that site maps start with site 1, not with site 0!!!. Also that channels start at 0, not 1,
         # which is a good assumption if you aren't using matlab.
-        trans = [x-1 for x in ct]
+        # trans = [x-1 for x in ct]
     else:
         trans = chan_translation[acquisition_system]
 
@@ -94,9 +96,10 @@ def make_geometry_by_channels(geo_by_site, chan_translation, bad_sites=[]):
 
     # make translation for acquisition system (should be defined as global).
     if acquisition_system == '':
-        ct = copy.deepcopy(chan_translation['sites'])
+        pass
+        # ct = copy.deepcopy(chan_translation['sites'])
         # NOTE: assumes that site maps start with site 1, not with site 0!!!.
-        trans = [x-1 for x in ct]
+        # trans = [x-1 for x in ct]
     else:
         trans = chan_translation[acquisition_system]
 

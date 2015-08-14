@@ -11,12 +11,19 @@ import argparse
 from utils.detect_peaks import detect_peaks
 
 
-def add_sniff_events(h5, overwrite=True, plot=False, *args, **kwargs):
+def add_sniff_events(h5, overwrite=True, plot=False, centering_fn='mean', *args, **kwargs):
     """
 
-    :param h5: tables.File object.
+    :param h5:
+    :param overwrite:
+    :param plot:
+    :param centering_fn: (optional) Str, ('mean', 'median'. This function name will be used to compute the offset of the
+    sniff stream. Other usual value would be 'median'.
+    :param args:
+    :param kwargs:
     :return:
     """
+
     assert isinstance(h5, tb.File)
     events_group = h5.root.events
     try:
@@ -27,6 +34,7 @@ def add_sniff_events(h5, overwrite=True, plot=False, *args, **kwargs):
 
     try:
         sniff_events_group = h5.create_group('/events', 'sniff')
+
     except tb.NodeError as e:
         if overwrite:
             h5.remove_node('/events/sniff', recursive=True)
@@ -36,6 +44,7 @@ def add_sniff_events(h5, overwrite=True, plot=False, *args, **kwargs):
             raise SniffExistExemption
     logging.info('Creating sniff events.')
     sniff = sniff_stream_tbarray[:, 0]
+    sniff -= np.__getattribute__(centering_fn)(sniff)  # subtract the mean or median from the sniff signal.
     fs_stream = sniff_stream_tbarray._v_attrs['sample_rate_Hz']
     fs_events = events_group._v_attrs['sample_rate_Hz']
     sniff_events_array = find_inhalations_simple(sniff, fs_stream)
@@ -52,6 +61,7 @@ def add_sniff_events(h5, overwrite=True, plot=False, *args, **kwargs):
     m = np.max(sniff[:10000])
     plt.plot(sniff[:10000])
     plt.plot(sniff_log[:10000] * m)
+    plt.grid()
     # plt.plot(plt.xlim(), [sniff.mean()]*2)
     plt.show()
 
@@ -122,7 +132,6 @@ def find_inhalations_simple(sniff, fs, *args, **kwargs):
     :return:
     """
 
-    sniff -= np.median(sniff)
     sniff = filt(sniff, fs, cutoff=120, n_taps=41)
     top = np.percentile(sniff, 99)
     bottom = np.percentile(sniff, 1)
@@ -149,9 +158,8 @@ def find_inhalations_simple(sniff, fs, *args, **kwargs):
         if edges[i] == 1:
             first_pk = (peaks_inh > i)[0]
             first_valley = (peaks_exh > i)[0]
-            ex_range = i+20000  # look for an exhalation in the next 3000 samples
-            if ex_range > edges.size:  # unless there are less than 3000 samples in the recording remaining.
-                ex_range = edges.size
+            ex_range = min(i+20000, edges.size)  # look for an exhalation in the next 3000 samples
+                                                 # unless there are less than 3000 samples in the recording remaining.
             for ii in xrange(i, ex_range):
                 if edges[ii] == -1:
                     next_exh = ii

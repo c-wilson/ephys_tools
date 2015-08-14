@@ -3,9 +3,7 @@ __author__ = 'chris'
 
 import numpy as np
 import matplotlib.pyplot as plt
-import logging
 from psth_and_rasters import get_rasters, make_spike_array
-from data_classes import Recording
 from odor_analysis import get_odor_name
 from utils.h5_decorator import h5decorator
 
@@ -25,8 +23,6 @@ def find_laser_events(h5, amplitude='', onset_delay=None, *args, **kwargs):
     laser_events = h5.root.events.laser.events.read()
     laser_params = h5.root.events.laser.params_table.read()
     matches = np.ones(laser_events.shape, dtype=np.bool)
-    trial_params = h5.root.events.trials.params_table.read()
-    trial_events = h5.root.events.trials.events.read()
 
     #  filter based on parameter input
     #  TODO: make these work diffently for multiple channels. (ie by taking a tuple for the parameter in)
@@ -43,7 +39,8 @@ def find_laser_events(h5, amplitude='', onset_delay=None, *args, **kwargs):
 
 
 @h5decorator
-def find_laser_trains(h5, min_dist_ms=20, onset_delay=None, n_pulses=-1, include_odor_trials=False, *args, **kwargs):
+def find_laser_trains(h5, min_dist_ms=20, onset_delay=None, n_pulses=-1, include_odor_trials=False,
+                      skip_last_trials=0, *args, **kwargs):
     """
     Finds the start and ends of laser trains. Returns an 2d array where the first column is made of start times and
     2nd column is end times. For each row, the start corresponds to the start of the first pulse in the train, while the
@@ -138,12 +135,21 @@ def find_laser_trains(h5, min_dist_ms=20, onset_delay=None, n_pulses=-1, include
                 new_mask[i] = True
         train_events = train_events[new_mask, :]
 
-    return train_events
+    end = len(train_events) - skip_last_trials
+    return train_events[:end]
 
 
 @h5decorator
-def get_laser_train_rasters(h5, clu, amplitude='', onset_delay=None, n_pulses=-1, time_window_ms=1000, pre_pad_ms=500,
-                            include_odor_trials=False, baseline_nsniffs=5, *args, **kwargs):
+def get_laser_train_rasters(h5, clu,
+                            amplitude='',
+                            onset_delay=None,
+                            n_pulses=-1,
+                            time_window_ms=1000,
+                            pre_pad_ms=500,
+                            include_odor_trials=False,
+                            baseline_nsniffs=5,
+                            skip_last_trials=0,
+                            *args, **kwargs):
     """
 
     :param h5:
@@ -157,7 +163,8 @@ def get_laser_train_rasters(h5, clu, amplitude='', onset_delay=None, n_pulses=-1
 
     pre_pad_samples = np.int(pre_pad_ms * h5.root.events._v_attrs['sample_rate_Hz'] / 1000.)
     train_events = find_laser_trains(h5, amplitude=amplitude, onset_delay=onset_delay,
-                                     n_pulses=n_pulses, include_odor_trials=include_odor_trials, *args, **kwargs)
+                                     n_pulses=n_pulses, include_odor_trials=include_odor_trials,
+                                     skip_last_trials=skip_last_trials, *args, **kwargs)
 
     train_starts = train_events[:, 0]
 
@@ -185,8 +192,17 @@ def get_laser_train_rasters(h5, clu, amplitude='', onset_delay=None, n_pulses=-1
 
 
 @h5decorator
-def plot_laser_train_rasters(h5, clu, amplitude='', onset_delay=None, n_pulses=-1, time_window_ms=1000, pre_pad_ms=500,
-                             include_odor_trials=True, *args, **kwargs):
+def plot_laser_train_rasters(h5, clu, amplitude='',
+                             onset_delay=None,
+                             n_pulses=-1,
+                             time_window_ms=1000,
+                             pre_pad_ms=500,
+                             include_odor_trials=True,
+                             axis=None,
+                             quick_plot=True,
+                             skip_last_trials=0,
+                             relative_to_inh=False,
+                             *args, **kwargs):
     """
 
     :param h5:
@@ -201,20 +217,35 @@ def plot_laser_train_rasters(h5, clu, amplitude='', onset_delay=None, n_pulses=-
     """
     rasters, _ = get_laser_train_rasters(h5, clu, amplitude=amplitude, onset_delay=onset_delay, n_pulses=n_pulses,
                                          time_window_ms=time_window_ms, pre_pad_ms=pre_pad_ms,
-                                         include_odor_trials=include_odor_trials, *args, **kwargs)
+                                         include_odor_trials=include_odor_trials, skip_last_trials=skip_last_trials,
+                                         *args, **kwargs)
     n_events = len(rasters)
     rows = np.ones(rasters.shape, dtype=np.int)
     row_template = np.arange(n_events)
     rows *= row_template[:, np.newaxis]
-    plt.scatter(rasters, rows, marker='|', *args, **kwargs)
-    plt.ylim(-1, n_events)
-    plt.xlim(-pre_pad_ms, -pre_pad_ms+time_window_ms)
+
+    if relative_to_inh:
+        rasters += onset_delay
+
+    if not axis:
+        axis = plt.axes()
+    if quick_plot:
+        axis.scatter(rasters, rows, marker='|', *args, **kwargs)
+        axis.set_ylim(0, n_events+1)
+    else:
+        for tr, tr_ras in enumerate(rasters):
+            axis.vlines(tr_ras, tr+.5, tr+1.5, *args, **kwargs)
+            axis.spines['top'].set_visible(False)
+            axis.spines['right'].set_visible(False)
+            axis.spines['left'].set_visible(False)
+            axis.xaxis.set_ticks_position('bottom')
+            axis.set_yticks([])
     return
 
 
 @h5decorator
 def get_laser_train_psth(h5, clu, bin_size, amplitude='', onset_delay=None, n_pulses=-1, time_window_ms=1000,
-                         pre_pad_ms=500, include_odor_trials=False, *args, **kwargs):
+                         pre_pad_ms=500, include_odor_trials=False, skip_last_trials=0, *args, **kwargs):
     """
 
     :param h5:
@@ -229,7 +260,8 @@ def get_laser_train_psth(h5, clu, bin_size, amplitude='', onset_delay=None, n_pu
     """
     rstrs = get_laser_train_rasters(h5, clu, amplitude=amplitude, onset_delay=onset_delay, n_pulses=n_pulses,
                                     time_window_ms=time_window_ms, pre_pad_ms=pre_pad_ms,
-                                    include_odor_trials=include_odor_trials, *args, **kwargs)
+                                    include_odor_trials=include_odor_trials, skip_last_trials=skip_last_trials,
+                                    *args, **kwargs)
     time_arrays = []
     spike_arrays = []
     n_trialss = []
@@ -251,8 +283,15 @@ def get_laser_train_psth(h5, clu, bin_size, amplitude='', onset_delay=None, n_pu
 
 
 @h5decorator
-def get_laser_train_psth_by_trial(h5, clu, bin_size, amplitude='', onset_delay=None, n_pulses=-1,
-                         time_window_ms=1000, pre_pad_ms=500, include_odor_trials=False, *args, **kwargs):
+def get_laser_train_psth_by_trial(h5, clu, bin_size,
+                                  amplitude='',
+                                  onset_delay=None,
+                                  n_pulses=-1,
+                                  time_window_ms=1000,
+                                  pre_pad_ms=500,
+                                  include_odor_trials=False,
+                                  skip_last_trials=0,
+                                  *args, **kwargs):
     """
 
     :param h5:
@@ -267,13 +306,10 @@ def get_laser_train_psth_by_trial(h5, clu, bin_size, amplitude='', onset_delay=N
     """
     rstrs = get_laser_train_rasters(h5, clu, amplitude=amplitude, onset_delay=onset_delay, n_pulses=n_pulses,
                                     time_window_ms=time_window_ms, pre_pad_ms=pre_pad_ms,
-                                    include_odor_trials=include_odor_trials, *args, **kwargs)
+                                    include_odor_trials=include_odor_trials, skip_last_trials=skip_last_trials,
+                                    *args, **kwargs)
     time_arrays = []
     spike_arrays = []
-    n_trialss = []
-    psths = []
-
-
 
     for ras in rstrs:
         spike_array, time_array = make_spike_array(ras, bin_size, -pre_pad_ms, time_window_ms-pre_pad_ms)
@@ -285,25 +321,66 @@ def get_laser_train_psth_by_trial(h5, clu, bin_size, amplitude='', onset_delay=N
 
 
 @h5decorator
-def plot_laser_train_psth(h5, clu, binsize, amplitude='', onset_delay=None, n_pulses=-1,
-                          time_window_ms=1000, pre_pad_ms=500, plot_baseline=True,
-                          plt_params='', plt_label='', include_odor_trials=False,
+def plot_laser_train_psth(h5, clu, binsize,
+                          amplitude='',
+                          onset_delay=None,
+                          n_pulses=-1,
+                          time_window_ms=1000,
+                          pre_pad_ms=500,
+                          plot_baseline=True,
+                          plt_params='',
+                          plt_label='',
+                          include_odor_trials=False,
+                          axis=None,
+                          skip_last_trials=0,
+                          relative_to_inh=True,
                           *args, **kwargs):
+    """
+
+    :param h5:
+    :param clu:
+    :param binsize:
+    :param amplitude:
+    :param onset_delay:
+    :param n_pulses:
+    :param time_window_ms:
+    :param pre_pad_ms:
+    :param plot_baseline:
+    :param plt_params:
+    :param plt_label:
+    :param include_odor_trials:
+    :param axis:
+    :param skip_last_trials:
+    :param args:
+    :param kwargs:
+    :return:
+    """
 
 
     psths, time_arrays, n_trialss = get_laser_train_psth(h5, clu, binsize, amplitude=amplitude, onset_delay=onset_delay,
                                                          n_pulses=n_pulses, time_window_ms=time_window_ms,
                                                          pre_pad_ms=pre_pad_ms, include_odor_trials=include_odor_trials,
+                                                         skip_last_trials=skip_last_trials,
                                                          *args, **kwargs)
-    styles = ['b', '--k']
+    if relative_to_inh:
+        for i in time_arrays:
+            i += onset_delay
 
-    plt.plot(time_arrays[0], psths[0], plt_params, label=plt_label, *args, **kwargs)
+    if not axis:
+        axis = plt.axes()
+
+    axis.plot(time_arrays[0], psths[0], plt_params, label=plt_label, *args, **kwargs)
 
     if plot_baseline:
-        plt.plot(time_arrays[1], psths[1], '--k', label=plt_label, *args, **kwargs)
+        axis.plot(time_arrays[1], psths[1], '--k', label=plt_label)
 
-    plt.xlim([-pre_pad_ms, -pre_pad_ms+time_window_ms])
-    # plt.ylim([0, plt.ylim()[1]])
-    plt.ylabel('Firing rate (Hz)')
-    plt.xlabel('Time post laser onset (ms)')
+
+    axis.set_xlim([-pre_pad_ms, -pre_pad_ms+time_window_ms])
+    axis.set_ylabel('Firing rate (Hz)')
+    axis.set_xlabel('Time post laser onset (ms)')
+
+    axis.spines['top'].set_visible(False)
+    axis.spines['right'].set_visible(False)
+    axis.xaxis.set_ticks_position('bottom')
+    axis.yaxis.set_ticks_position('left')
     return

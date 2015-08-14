@@ -99,6 +99,8 @@ def add_lfp_stream(raw_kwd, dest_file, downsample_factor=16, *args, **kwargs):
     l = 0
     records = []
     nrecs = raw_kwd.root.recordings._v_nchildren
+
+    #TODO: check for neural_PL_filtered and use "data" node if it is not present.
     for i in xrange(nrecs):
         record = raw_kwd.get_node('/recordings/{0:d}/neural_PL_filtered'.format(i))  # using PL filtered data.
         l += record.shape[0]

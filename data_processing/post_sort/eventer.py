@@ -369,7 +369,7 @@ class GenericEventHandler(object):
         :return:
         """
 
-        stream_log = stream > np.mean(stream)
+        stream_log = stream > (stream.mean() + stream.std())
         edges = np.convolve(stream_log, [1, -1])
         up_events = np.where(edges == 1)[0]
         down_events = np.where(edges == -1)[0]
